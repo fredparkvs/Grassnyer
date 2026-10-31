@@ -158,6 +158,22 @@ async function main() {
     writer.kill();
     await G(`import('/kit/settings.js').then((s) => s.updateSettings({ wheel: null }))`);
 
+    // ---- the chow chow: on the lawn, and runs off when the tractor comes ----
+    let dog = await G('__grassnyer.dog');
+    const LB = await G('__grassnyer.bounds');
+    check('the chow chow is on the lawn', dog.visible && dog.x > LB.minX && dog.x < LB.maxX && dog.z > LB.minZ && dog.z < LB.maxZ, JSON.stringify(dog));
+    await G('__grassnyer.place(3, 3, Math.PI)');                 // driving north
+    await G('__grassnyer.placeDog(3, 0.2)');                     // right in its path
+    const gap = async () => { const d = await G('__grassnyer.dog'), t = await G('__grassnyer.vehicle'); return Math.hypot(d.x - t.x, d.z - t.z); };
+    let ran = false;
+    for (let i = 0; i < 40; i++) {
+      await tap(5);   // keep driving
+      if ((await G('__grassnyer.dog')).state === 'run') ran = true;
+      if (ran && (await gap()) > 5.5) break;
+    }
+    await shot('04c-dog');
+    check('the chow chow runs away from the tractor', ran && (await gap()) > 5.5, `ran=${ran} gap=${(await gap()).toFixed(1)}`);
+
     // ---- magic paint ----
     await tap(1);
     v = await G('__grassnyer.vehicle');

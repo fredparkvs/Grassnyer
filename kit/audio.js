@@ -183,6 +183,14 @@ export class Sound {
     this._tone(1320, t, 0.12, { type: 'triangle', vol: 0.18, slideTo: 990 });
   }
 
+  // the chow chow: a friendly "wuf-wuf"
+  sfx_woof(t) {
+    for (const d of [0, 0.24]) {
+      this._tone(420, t + d, 0.14, { type: 'triangle', vol: 0.3, slideTo: 150 });
+      this._noise(t + d, 0.1, { vol: 0.14, filter: 'bandpass', freq: 800, q: 1.3 });
+    }
+  }
+
   // reversing beeper (played every 0.7 s while going backwards)
   sfx_beep(t) {
     this._tone(1050, t, 0.22, { type: 'square', vol: 0.05 });

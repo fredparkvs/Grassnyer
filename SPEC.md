@@ -72,6 +72,8 @@ Bumping into anything gives a soft "boing" and a gentle bounce back (plus vibrat
 - **10 seconds without getting anywhere** while it's meant to be driving: a big 5-4-3-2-1 countdown with a tick for each number, then it pops back to the lawn's starting spot. "Getting anywhere" means moving 1.5 units. Waiting for a touch counts as meant to be driving; pressing Stop doesn't. Driving away during the countdown cancels it.
 - **Lawns are 1.4 times bigger** in each direction than the sizes in the table above. Obstacles keep their size and spread out with the lawn.
 
+**The family's chow chow** (added 2026-10-31 at the parent's request): a big, fluffy, tan chow chow lives on every lawn. He wanders about, stops to sniff or to watch the vehicle, and runs off whenever the vehicle comes within about 5 units, with a friendly "wuf-wuf" at most every 6 seconds. He then pants with his blue-black tongue. He's faster than the fastest vehicle, picks the free spot furthest from the vehicle without running past it, and never blocks or gets hit: if the two ever meet, only the dog is nudged aside. He doesn't mow, and he doesn't count towards anything.
+
 ## 6. Look and sound
 
 - **Look:** chunky, bright, toy-like low-poly 3D. A small driver character in a sun hat sits on the vehicle, which has no face.

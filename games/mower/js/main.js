@@ -17,6 +17,7 @@ import { Hud } from './hud.js';
 import { Particles, Hints, CLIPPING_COLOURS, CONFETTI_COLOURS } from './effects.js';
 import { pickDecoration } from './decorations.js';
 import * as M from './models.js';
+import { Dog } from './dog.js';
 
 const params = new URLSearchParams(location.search);
 const num = (k, d) => (params.has(k) ? Number(params.get(k)) : d);
@@ -68,6 +69,9 @@ scene.add(clippings.points, confetti.points, paintFx.points, hints.group);
 const flyer = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8), M.glow(0xfff2a0));
 flyer.visible = false;
 scene.add(flyer);
+const dog = new Dog();   // the family's chow chow
+scene.add(dog.root);
+dog.onBark = () => sound.play('woof');
 
 const garage = new Garage({ wheel, sound, hud });
 
@@ -151,6 +155,7 @@ async function startLawn(index) {
   vehicle.fill = 0;
   vehicle.setTip(0);
   vehicle.place(world.start.x, world.start.z, world.start.heading);
+  dog.spawn(world, vehicle);
 
   pile = M.grassPile();
   pile.position.set(world.pile.x, 0, world.pile.z);
@@ -605,6 +610,7 @@ function frame(now) {
     else if (countdown > 0) { countdown = 0; hud.setCountdown(null); }
     runTweens(dt);
     vehicle.update(dt, simT);
+    dog.update(dt, simT, vehicle);
     world.grass.update(simT);
     clippings.update(dt);
     confetti.update(dt);
@@ -662,6 +668,8 @@ window.__grassnyer = {
   },
   get idleStopped() { return idleStopped; },
   get gear() { return gear; },
+  get dog() { return { x: dog.x, z: dog.z, state: dog.state, visible: dog.root.visible }; },
+  placeDog(x, z) { dog.place(x, z); },
   get countdown() { return countdown; },
   get hopping() { return hopping; },
   get hops() { return hops; },

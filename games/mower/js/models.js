@@ -523,3 +523,61 @@ export function arrow() {
   g.add(m);
   return g;
 }
+
+// ---- the family's chow chow -------------------------------------------------
+// Big, fluffy and tan, with a lion-like ruff, small ears, a tail curled over
+// its back and the breed's blue-black tongue (shown while panting).
+// Returns parts so dog.js can animate them: legs pivot at the hip.
+export function chowChow() {
+  const tan = mat(0xd8a05e), deep = mat(0xb98247), ruff = mat(0xe4b273), cream = mat(0xf1d39b);
+  const black = mat(0x1e1e22), tongueMat = mat(0x2c2f6b);
+  const root = new THREE.Group();
+  root.add(blobShadow(1.3, 1.9, 0.3));
+  const body = new THREE.Group();
+  root.add(body);
+  body.add(at(rbox(0.76, 0.62, 1.05, 0.3, tan), 0, 0.6, -0.02));
+  const rump = at(blob(0.4, tan), 0, 0.64, -0.44);
+  rump.scale.set(1, 0.95, 0.9);
+  body.add(rump);
+  const mane = at(blob(0.46, ruff), 0, 0.8, 0.3);   // the big ruff around the neck
+  mane.scale.set(1.15, 1.02, 0.72);
+  body.add(mane);
+
+  const head = new THREE.Group();
+  head.position.set(0, 0.98, 0.76);
+  body.add(head);
+  const skull = blob(0.3, tan);
+  skull.scale.set(1.05, 0.92, 1);
+  head.add(skull);
+  head.add(at(rbox(0.3, 0.2, 0.24, 0.09, cream), 0, -0.07, 0.25));   // short square muzzle
+  head.add(at(ball(0.06, black, 8), 0, -0.02, 0.38));                // nose
+  for (const s of [-1, 1]) {
+    head.add(at(ball(0.035, black, 6), s * 0.11, 0.07, 0.24));         // small deep-set eyes
+    const ear = at(cyl(0, 0.09, 0.17, deep, 4), s * 0.17, 0.27, -0.02);
+    ear.rotation.z = -s * 0.25;
+    head.add(ear);
+  }
+  const tongue = at(rbox(0.11, 0.03, 0.15, 0.015, tongueMat), 0, -0.2, 0.34);
+  tongue.rotation.x = 0.6;
+  head.add(tongue);
+
+  const legs = [];
+  for (const [x, z] of [[-0.23, 0.32], [0.23, 0.32], [-0.23, -0.36], [0.23, -0.36]]) {
+    const hip = new THREE.Group();   // short, thick chow legs
+    hip.position.set(x, 0.38, z);
+    hip.add(at(cyl(0.15, 0.13, 0.36, deep, 8), 0, -0.18, 0));
+    hip.add(at(ball(0.13, deep, 8), 0, -0.33, 0.04));                  // fluffy paw
+    body.add(hip);
+    legs.push(hip);
+  }
+
+  const tail = new THREE.Group();
+  tail.position.set(0, 0.9, -0.42);
+  const curl = at(blob(0.22, ruff), 0, 0.08, 0.06);                    // curled up over the back
+  curl.scale.set(0.9, 0.8, 1.15);
+  tail.add(curl);
+  tail.add(at(blob(0.12, cream), 0.05, 0.2, 0.14));
+  body.add(tail);
+
+  return { root, body, head, legs, tail, tongue, radius: 0.55 };
+}
