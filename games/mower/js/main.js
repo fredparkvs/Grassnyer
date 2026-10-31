@@ -2,11 +2,11 @@
 //
 // Flow: garage -> lawn intro -> play -> celebrate -> next lawn ...
 // Leaving the wheel alone stops the vehicle (20 s) and later sends it to the
-// shed to sleep (10 min). Waking starts a fresh session: back to the garage,
+// shed to sleep (10 min). Waking starts a fresh session from the game picker:
 // plain vehicle, next lawn. The optional play timer also ends in the shed.
 
 import * as THREE from 'three';
-import { loadSettings, settings, gameState, saveSoon } from '/kit/settings.js';
+import { loadSettings, settings, gameState, saveSoon, saveNow } from '/kit/settings.js';
 import { Wheel } from '/kit/input.js';
 import { Sound } from '/kit/audio.js';
 import { ParentMenu } from '/kit/parent.js';
@@ -423,17 +423,15 @@ async function goToSleep(reason, alreadyDark = false) {
   }, 100);
 }
 
+// Waking starts a fresh session from the game picker (agreed: wake goes to
+// the picker). With only one game the picker skips straight back here.
 function wake() {
   if (state !== 'sleep') return;
   clearInterval(sleepPoll);
+  state = 'waking';
   hud.setSleep(false);
   hud.fade(1, 10);
-  wheel.markActive();
-  newSession();
-  state = 'waking';
-  last = performance.now();
-  requestAnimationFrame(frame);
-  enterGarage();
+  saveNow().finally(() => location.replace('/' + location.search));
 }
 
 // ---- camera ----------------------------------------------------------------------------

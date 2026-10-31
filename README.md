@@ -1,13 +1,27 @@
 # Grassnyer
 
-A mowing game for a 4 year old, played with a steering wheel on a Raspberry
-Pi 5 plugged into the TV.
+Steering-wheel games for a 4 year old on a Raspberry Pi 5 plugged into the TV,
+chosen from a picture game picker: **Grassnyer** (our own mowing game) and
+**SuperTuxKart** (kart racing).
+
+## Grassnyer
 
 Pick a ride-on mower or a tractor and a colour. Then mow the tall grass, find
 the presents hidden in it (each one adds flames, lights, hubcaps or a hat to
 the vehicle) and finish each lawn with a ridiculous grass pile and confetti.
 There's no reading, no losing and no timer pressure. The full design is in
 [SPEC.md](SPEC.md).
+
+## SuperTuxKart
+
+[SuperTuxKart](https://supertuxkart.net) (free and open source, GPL) is
+installed by the Pi setup.
+- **Starting:** picking it in the game picker jumps straight into a short,
+  easy race (2 laps against 3 slow AI karts, random friendly kart and track).
+- **Driving:** steer with the wheel and press the **gas pedal** to go.
+- **Ending:** when the race ends, the results show for a few seconds and then
+  it goes back to the picker.
+- **Getting out early:** hold the two parent buttons for 5 seconds.
 
 ## Setting up the Pi
 
@@ -53,11 +67,12 @@ or press **Ctrl+Shift+P** on a keyboard. From there you can:
 - **Play timer:** off, or 10 to 60 minutes. When time's up the vehicle drives
   into the shed to sleep, and only the parent buttons wake it.
 - **Wheel setup:** teach the game your wheel's axes and buttons
+- **Back to the games:** return to the game picker
 - **Update**, **Go back** and **Quit to desktop**
 
 If nobody touches the wheel for 20 seconds the vehicle waits. After 10
-minutes it goes to sleep in the shed. The next touch starts a fresh game:
-back to the garage with a plain vehicle, on to the next lawn.
+minutes it goes to sleep in the shed. The next touch opens the game picker,
+and Grassnyer starts fresh: plain vehicle, on to the next lawn.
 
 ## Your voice
 

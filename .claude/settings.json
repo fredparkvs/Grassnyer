@@ -7,6 +7,7 @@
       "Bash(npm test *)",
       "Bash(npm run *)",
       "Bash(node tests/smoke.cjs *)",
+      "Bash(node tests/native.cjs *)",
       "Bash(python3 kit/server.py *)",
       "Bash(bash pi/wheel-check.sh *)",
       "Bash(lsusb *)",
@@ -21,6 +22,7 @@
       "Bash(systemctl *)",
       "Bash(raspi-config *)",
       "Bash(bash pi/setup.sh *)",
+      "Bash(bash pi/install-supertuxkart.sh *)",
       "Bash(reboot *)",
       "Bash(shutdown *)"
     ]

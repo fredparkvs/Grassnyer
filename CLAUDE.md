@@ -1,8 +1,10 @@
 # Grassnyer: notes for Claude
 
-Kids' steering-wheel games for a Raspberry Pi 5 on a TV. The first game is
-Grassnyer: a 4 year old drives a ride-on mower or tractor, mows tall grass,
-finds presents that decorate the vehicle, and celebrates with a giant grass pile.
+Kids' steering-wheel games for a Raspberry Pi 5 on a TV, chosen from a picture
+game picker. Grassnyer (our own): a 4 year old drives a ride-on mower or tractor,
+mows tall grass, finds presents that decorate the vehicle, and celebrates with
+a giant grass pile. SuperTuxKart (installed, launched as a native game): straight
+into a short kid race.
 
 `SPEC.md` is the design the parent agreed to. Don't change agreed behaviour
 without asking; if something in the spec turns out to be impractical, say so.
@@ -16,11 +18,14 @@ kit/input.js                wheel via Gamepad API + keyboard; calibration lives 
 kit/settings.js             shared settings (GET/POST /api/settings)
 kit/audio.js                all sounds synthesised in WebAudio; voice/ clips override fallbacks
 kit/parent.js               parent settings screen + wheel setup wizard
+kit/native.py               runs a native game; closes it on race end or parent buttons
 games/mower/                the mower game (js/main.js is the state machine)
+games/supertuxkart/         game.json describing how SuperTuxKart is launched
 vendor/three/               three.js r187, bundled (no CDN, works offline)
 voice/                      parent's recorded clips (see voice/README.md)
 pi/                         setup.sh, kiosk, update/goback/quit, Remote Control service
-tests/smoke.cjs             end-to-end test in headless Chromium with a fake wheel
+tests/smoke.cjs             end-to-end Grassnyer test in headless Chromium with a fake wheel
+tests/native.cjs            picker + native game test, with stand-in games and a fake joystick
 ```
 
 Plain ES modules with an import map, no build step. Keep it that way so edits
@@ -98,11 +103,56 @@ Chromium reports this wheel with raw (non-"standard") axes. Rumble needs
 
 ## Adding a game
 
-Create `games/<id>/` with `game.json` (`name`, `icon`, `order`) and an
-`index.html`. Reuse `kit/` for the wheel, settings, sounds, parent menu and
-saving (`gameState('<id>')`). The picker appears automatically once there
-are two games. Before then, add a "Back to the games" item to the parent menu
-so the child can return to the picker.
+**Browser game:** create `games/<id>/` with `game.json` (`name`, `icon`,
+`order`) and an `index.html`. Reuse `kit/` for the wheel, settings, sounds,
+parent menu (it adds "Back to the games" by itself) and saving
+(`gameState('<id>')`).
+
+**Native game:** give `game.json` a `native` section (see
+`games/supertuxkart/game.json` and the top of `kit/native.py`). It only shows
+in the picker when its program is installed.
+
+How a native game runs:
+- The picker asks the server (`POST /api/launch`), which runs `kit/native.py`.
+- `native.py` loads the desktop's display variables from
+  `~/.local/share/grassnyer/session.env`, which `kiosk.sh` writes, since the
+  server runs as a background service.
+- It logs to `~/.local/share/grassnyer/native-<id>.log`.
+- It closes the game when `exitOnLog` matches or the parent buttons are held
+  for 5 s. It reads those buttons as raw joystick numbers from
+  `settings.wheel.parentButtons`, falling back to 6 and 7.
+
+## SuperTuxKart bring-up (on the Pi)
+
+Agreed design: `SPEC.md` section 13. The facts below come from reading the
+SuperTuxKart 1.5 source; none of it has run on the Pi yet.
+
+1. `bash pi/install-supertuxkart.sh` (setup.sh runs it). This installs the
+   official 1.5 ARM64 build in `~/.local/opt`. Don't use apt: its 1.4 can't
+   pick the wheel when starting straight into a race.
+2. With the parent at the TV, launch it from the picker. Then read
+   `~/.local/share/grassnyer/native-supertuxkart.log`.
+   - "Requested input device unavailable, fallback to the default keyboard"
+     means `--use-gamepad=0` isn't the wheel. Try 1.
+3. **Bind the pedals.** Steering defaults to axis 0, which suits the wheel, but
+   accelerate defaults to axis 1, which is wrong for it.
+   - Run `~/.local/opt/SuperTuxKart-1.5-linux-arm64/run_game.sh` directly, then
+     go to Options, Controls, the wheel, and bind Accelerate to the gas pedal
+     and Brake to the brake pedal.
+   - Or edit `~/.config/supertuxkart/config-0.10/input.xml`, for example
+     `<action name="accel" event="2" id="N" direction="1" range="1"/>`.
+     `event` is 2 for an axis, 3 for a button; `direction` is 0 for negative,
+     1 for positive. SDL's axis numbers may differ from evtest's.
+4. **Speed.** It starts at 1280x720 with the simple renderer. If it's slow,
+   try `--render-driver=vulkan`, a smaller `-s`, or `--disable-particles` in
+   `game.json`. Record what you measured in `docs/wheel-notes.md`.
+5. **When a race finishes,** the results should show for about 6 s and then
+   it returns to the picker. Check the picker gets the screen and wheel back.
+   Ending relies on `--debug=gui` printing
+   `Switching to screen race_result.stkgui`; if that line changes, update
+   `exitOnLog`.
+6. **Escape hatch.** Holding the parent buttons for 5 s must close it. If not,
+   compare `jstest /dev/input/js0` button numbers with `settings.wheel.parentButtons`.
 
 ## Performance
 

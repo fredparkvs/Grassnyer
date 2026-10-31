@@ -13,6 +13,7 @@
 #   6. keeps Claude Code Remote Control running in a tmux session
 #   7. creates a deploy key so the Pi can save work to this one GitHub repo
 #   8. installs the test tools for the workshop copy
+#   9. installs SuperTuxKart (the second game in the picker)
 set -euo pipefail
 
 REPO_HTTPS="https://github.com/fredparkvs/Grassnyer.git"
@@ -24,13 +25,13 @@ UNITS="$HOME/.config/systemd/user"
 
 step() { printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
 
-step "1/8 Installing packages"
+step "1/9 Installing packages"
 CHROMIUM=chromium
 apt-cache show chromium >/dev/null 2>&1 || CHROMIUM=chromium-browser
 sudo apt-get update -qq
 sudo apt-get install -y -qq git curl python3 "$CHROMIUM" evtest joystick ffmpeg tmux nodejs npm
 
-step "2/8 Live copy for the TV ($LIVE)"
+step "2/9 Live copy for the TV ($LIVE)"
 if [ -d "$LIVE/.git" ]; then
   echo "Already there (press Update in the parent settings to change it)."
 else
@@ -38,7 +39,7 @@ else
 fi
 mkdir -p "$DATA"
 
-step "3/8 Game server service"
+step "3/9 Game server service"
 mkdir -p "$UNITS"
 install -m 644 "$WORKSHOP/pi/systemd/grassnyer-server.service" "$UNITS/"
 sudo loginctl enable-linger "$USER"
@@ -46,7 +47,7 @@ systemctl --user daemon-reload
 systemctl --user enable --now grassnyer-server.service
 systemctl --user restart grassnyer-server.service
 
-step "4/8 Start the game full screen with the desktop"
+step "4/9 Start the game full screen with the desktop"
 mkdir -p "$HOME/.config/autostart"
 cat > "$HOME/.config/autostart/grassnyer-kiosk.desktop" <<DESKTOP
 [Desktop Entry]
@@ -57,14 +58,14 @@ X-GNOME-Autostart-enabled=true
 DESKTOP
 echo "Added $HOME/.config/autostart/grassnyer-kiosk.desktop"
 
-step "5/8 No screen blanking, desktop auto-login, SSH on"
+step "5/9 No screen blanking, desktop auto-login, SSH on"
 if command -v raspi-config >/dev/null; then
   sudo raspi-config nonint do_blanking 1      # 1 = blanking off
   sudo raspi-config nonint do_boot_behaviour B4  # desktop, logged in automatically
 fi
 sudo systemctl enable --now ssh
 
-step "6/8 Claude Code Remote Control service"
+step "6/9 Claude Code Remote Control service"
 install -m 644 "$WORKSHOP/pi/systemd/claude-remote.service" "$UNITS/"
 systemctl --user daemon-reload
 systemctl --user enable claude-remote.service
@@ -75,7 +76,7 @@ else
   echo "Claude Code isn't installed yet, so the service will fail until it is."
 fi
 
-step "7/8 Deploy key for saving work to GitHub"
+step "7/9 Deploy key for saving work to GitHub"
 KEY="$HOME/.ssh/grassnyer_deploy"
 mkdir -p "$HOME/.ssh"
 chmod 700 "$HOME/.ssh"
@@ -95,8 +96,11 @@ fi
 grep -q "github.com" "$HOME/.ssh/known_hosts" 2>/dev/null || ssh-keyscan -t ed25519 github.com >> "$HOME/.ssh/known_hosts" 2>/dev/null
 git -C "$WORKSHOP" remote set-url --push origin "$REPO_SSH"
 
-step "8/8 Test tools for the workshop copy"
+step "8/9 Test tools for the workshop copy"
 (cd "$WORKSHOP" && npm install --no-audit --no-fund --silent)
+
+step "9/9 SuperTuxKart"
+bash "$WORKSHOP/pi/install-supertuxkart.sh"
 
 cat <<DONE
 
@@ -112,4 +116,6 @@ $(cat "$KEY.pub")
 
   * Reboot when convenient (sudo reboot). The game should come up full screen.
   * Run bash $WORKSHOP/pi/wheel-check.sh with the wheel plugged in.
+  * In SuperTuxKart, the gas and brake pedals still need binding to the wheel
+    (see CLAUDE.md, "SuperTuxKart bring-up").
 DONE

@@ -8,6 +8,9 @@ URL="http://127.0.0.1:${GRASSNYER_PORT:-8321}/"
 BROWSER="$(command -v chromium || command -v chromium-browser)"
 mkdir -p "$DATA"
 rm -f "$FLAG"
+# native games (SuperTuxKart) are started by the background game server, which
+# doesn't know about the desktop: leave it the display details
+env | grep -E '^(WAYLAND_DISPLAY|DISPLAY|XAUTHORITY|XDG_RUNTIME_DIR|XDG_SESSION_TYPE|XDG_CURRENT_DESKTOP|DBUS_SESSION_BUS_ADDRESS)=' > "$DATA/session.env"
 
 for _ in $(seq 1 60); do
   curl -fs "${URL}api/version" >/dev/null && break
