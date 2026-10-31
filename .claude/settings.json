@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit(/**)",
+      "Write(/**)",
+      "Bash(git *)",
+      "Bash(npm test *)",
+      "Bash(npm run *)",
+      "Bash(node tests/smoke.cjs *)",
+      "Bash(python3 kit/server.py *)",
+      "Bash(bash pi/wheel-check.sh *)",
+      "Bash(lsusb *)",
+      "Bash(ffmpeg *)",
+      "Bash(tmux ls *)"
+    ],
+    "ask": [
+      "Bash(sudo *)",
+      "Bash(apt *)",
+      "Bash(apt-get *)",
+      "Bash(npm install *)",
+      "Bash(systemctl *)",
+      "Bash(raspi-config *)",
+      "Bash(bash pi/setup.sh *)",
+      "Bash(reboot *)",
+      "Bash(shutdown *)"
+    ]
+  }
+}

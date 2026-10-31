@@ -1,0 +1,12 @@
+{
+  "name": "grassnyer",
+  "private": true,
+  "description": "Kids' steering-wheel games for a Raspberry Pi 5. Plain ES modules, no build step.",
+  "scripts": {
+    "start": "python3 kit/server.py",
+    "test": "node tests/smoke.cjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.50.0"
+  }
+}

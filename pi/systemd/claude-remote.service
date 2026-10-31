@@ -1,0 +1,12 @@
+[Unit]
+Description=Claude Code Remote Control in ~/Grassnyer (tmux session "claude")
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/tmux new-session -d -s claude %h/Grassnyer/pi/remote-control.sh
+ExecStop=/usr/bin/tmux kill-session -t claude
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target
