@@ -28,7 +28,7 @@ const T = {
   stuckAfter: num('stuckAfter', 10),   // seconds trying to drive without getting anywhere...
   stuckCount: 5,                       // ...then a countdown back to the start
   bumpHop: 5,                          // bumps in the same spot in a row before hopping away
-  finishAt: 0.95,                      // lawn counts as done at 95%
+  finishAt: 0.8,                       // lawn counts as done at 80% (was 95%; lowered at the parent's request)
   presents: 3,
 };
 const SCALES = [1, 0.85, 0.72, 0.6, 0.5];
@@ -352,7 +352,7 @@ function updatePlay(dt) {
   sound.setEngine(Math.min(1, Math.abs(vehicle.speed) / vmax), cuttingLevel);
 
   const progress = world.grass.progress;
-  vehicle.fill = Math.min(1, progress);
+  vehicle.fill = Math.min(1, progress / T.finishAt);   // catcher is full when the lawn is done
   hud.setProgress(progress / T.finishAt);
 
   for (const p of presents) {
@@ -370,10 +370,10 @@ function updateHints(progress) {
     hintsSince = simT;
     hintRefresh = 0;
     hints.show(true);
-    if (progress > 0.6) sound.voice('nearly_done', 'sparkle');
+    if (progress > T.finishAt * 0.63) sound.voice('nearly_done', 'sparkle');   // these were 0.6 and 0.8 of a 95% finish
     else sound.play('sparkle');
   }
-  if (hintsOn && progress < 0.8 && simT - hintsSince > 6 && simT - lastCutTime < 0.5) {
+  if (hintsOn && progress < T.finishAt * 0.84 && simT - hintsSince > 6 && simT - lastCutTime < 0.5) {
     hintsOn = false;
     hints.show(false);
   }

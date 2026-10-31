@@ -40,7 +40,7 @@ The repo is also the home for future kids' games on the same Pi.
    - Turn the wheel through 8 colours (red, orange, yellow, green, blue, purple, pink, black), then press.
    - The last vehicle and colour are pre-selected, so a single press is enough to go.
 4. **Lawn:** mow the grass and find the 3 hidden presents.
-5. **Celebration:** at about 95% mowed (see section 7).
+5. **Celebration:** at about 80% mowed (see section 7). This was 95% until 2026-10-31, when the parent asked for it lower.
 6. The next lawn starts automatically. After lawn 5, it loops back to lawn 1 with the presents in new places.
 
 **[Q37] Walking away and coming back:**
@@ -98,7 +98,7 @@ Bumping into anything gives a soft "boing" and a gentle bounce back (plus vibrat
 - The grass catcher (a bag on the mower, a trailer behind the tractor) visibly fills up. There's nothing to empty during play.
 - A picture-based progress meter fills as the lawn gets mowed.
 - **Last tufts:** after a short spell with no progress, the remaining patches sparkle and an arrow points to the nearest one.
-- **Celebration** (automatic, at about 95% mowed):
+- **Celebration** (automatic, at about 80% mowed):
   1. The leftover tufts get zoom-cut.
   2. The vehicle drives itself to the compost corner.
   3. The catcher or trailer tips up and pours out a ridiculously huge pile.

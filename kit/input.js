@@ -113,6 +113,7 @@ export class Wheel {
     this.enabled = true;          // games disable input while the parent menu is open
 
     this._keys = new Set();
+    this._tapped = new Set();     // keys pressed since the last poll, even if already let go
     this._kbSteer = 0;
     this._prevButtons = [];
     this._steerAnchor = 0;
@@ -128,6 +129,7 @@ export class Wheel {
       }
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
       this._keys.add(e.code);
+      this._tapped.add(e.code);
       this.lastActivity = performance.now();
     });
     window.addEventListener('keyup', (e) => this._keys.delete(e.code));
@@ -193,7 +195,9 @@ export class Wheel {
     this.raw.endPoll();
 
     // ---- keyboard ----------------------------------------------------
-    const k = this._keys;
+    // a tap shorter than a frame still counts once (slow frames on the Pi)
+    const k = new Set([...this._keys, ...this._tapped]);
+    this._tapped.clear();
     const kbTarget = (k.has('ArrowRight') || k.has('KeyD') ? 1 : 0) - (k.has('ArrowLeft') || k.has('KeyA') ? 1 : 0);
     const rate = kbTarget === 0 ? 6 : 3;
     this._kbSteer += clamp(kbTarget - this._kbSteer, -rate * dt, rate * dt);

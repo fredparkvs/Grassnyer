@@ -240,17 +240,17 @@ async function main() {
 
     // ---- hints ----
     await tap(0); // stop
-    await G('__grassnyer.mowTo(0.85)');
+    await G('__grassnyer.mowTo(0.7)');
     await until(() => window.__grassnyer.hints, 8000).catch(() => {});
     check('sparkles appear after a while without mowing', await G('__grassnyer.hints'));
     await sleep(600);
     await shot('07-hints');
 
     // ---- celebration ----
-    await G('__grassnyer.mowTo(0.96)');
+    await G('__grassnyer.mowTo(0.82)');
     await tap(0); // go again
     await until(() => window.__grassnyer.state === 'celebrate', 5000).catch(() => {});
-    check('lawn finishes at 95%', (await G('__grassnyer.state')) === 'celebrate');
+    check('lawn finishes at 80%', (await G('__grassnyer.state')) === 'celebrate');
     await sleep(4300);
     await shot('08-celebrate-pile');
     await sleep(2200);
