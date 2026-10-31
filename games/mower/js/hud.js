@@ -29,6 +29,7 @@ export class Hud {
       </div>
       <div class="light hidden"><i class="red"></i><i class="green"></i></div>
       <div class="wheel-hint hidden">${SVG.wheel}</div>
+      <div class="countdown hidden"><b></b></div>
       <div class="nowheel hidden">${SVG.wheel}<span>${SVG.plug}</span></div>
       <div class="garage-ui hidden">
         <div class="g-row g-vehicle"><span class="g-arrow">${SVG.arrowL}</span><span class="g-wheel">${SVG.wheel}</span><span class="g-arrow">${SVG.arrowR}</span></div>
@@ -60,6 +61,17 @@ export class Hud {
   }
 
   setWheelHint(on) { this.show('.wheel-hint', on); }
+
+  // big 5-4-3-2-1 before a stuck vehicle goes back to the start; null hides it
+  setCountdown(n) {
+    const el = this.q('.countdown');
+    this.show('.countdown', n != null);
+    if (n == null) return;
+    el.firstElementChild.textContent = n;
+    el.classList.remove('tick');
+    void el.offsetWidth;
+    el.classList.add('tick');
+  }
 
   setConnected(c) { this.show('.nowheel', !c); }
 

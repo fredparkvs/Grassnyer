@@ -106,7 +106,7 @@ export class Vehicle {
       const fx = Math.sin(this.heading), fz = Math.cos(this.heading);
       const approach = -(fx * nx + fz * nz) * this.speed;
       if (approach > 0.3 && this.bumpCooldown <= 0) {
-        bump = { kind, strength: Math.min(1, approach / 3) };
+        bump = { kind, strength: Math.min(1, approach / 3), nx, nz };   // n: away from what was hit
         this.bumpCooldown = 0.6;
         this.bounceTimer = 0.45;
         this.speed = -Math.sign(this.speed) * Math.max(0.9, Math.abs(this.speed) * 0.4);
@@ -151,7 +151,9 @@ export class Vehicle {
   update(dt, t) {
     for (const w of this.m.wheels) {
       w.rotation.x += (this.speed * dt) / w.userData.radius;
-      if (w.position.z > 0) w.rotation.y = this.steerAngle * 0.5;
+      // front wheels point the way the vehicle turns (steering right turns
+      // towards -x, so the wheels yaw negative)
+      if (w.position.z > 0) w.rotation.y = -this.steerAngle * 0.5;
     }
     for (const d of Object.values(this.decor)) d.update?.(t);
     this.pops = this.pops.filter((p) => {

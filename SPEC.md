@@ -67,7 +67,10 @@ Every lawn has:
 - Flower beds that can't be mowed: the vehicle slides around them and they stay standing, with no penalty.
 - Hedges and fences all the way around.
 
-Bumping into anything gives a soft "boing" and a gentle bounce back (plus vibration). The vehicle can never get stuck.
+Bumping into anything gives a soft "boing" and a gentle bounce back (plus vibration). The vehicle can never get stuck. These rules were added 2026-10-31 at the parent's request:
+- **5 bumps in a row in the same spot** (within 2.5 units, each within 6 s of the last): the vehicle hops 3.5 units away from whatever it keeps hitting, and lands facing away from it. Out of a corner, that means diagonally out.
+- **10 seconds without getting anywhere** while it's meant to be driving: a big 5-4-3-2-1 countdown with a tick for each number, then it pops back to the lawn's starting spot. "Getting anywhere" means moving 1.5 units. Waiting for a touch counts as meant to be driving; pressing Stop doesn't. Driving away during the countdown cancels it.
+- **Lawns are 1.4 times bigger** in each direction than the sizes in the table above. Obstacles keep their size and spread out with the lawn.
 
 ## 6. Look and sound
 

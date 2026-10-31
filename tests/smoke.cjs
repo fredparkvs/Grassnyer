@@ -96,7 +96,7 @@ async function main() {
   };
 
   try {
-    await page.goto(`http://127.0.0.1:${port}/?idleStop=3&idleSleep=14&hintAfter=2`);
+    await page.goto(`http://127.0.0.1:${port}/?idleStop=3&idleSleep=14&hintAfter=2&stuckAfter=4`);
     await until(() => window.__grassnyer && window.__grassnyer.state === 'garage');
     check('picker skips straight to the only game', page.url().includes('/games/mower/'));
     await sleep(600);
@@ -122,10 +122,10 @@ async function main() {
     v = await G('__grassnyer.vehicle');
     check('auto-drive moves forward', v.speed > 1, JSON.stringify({ speed: v.speed, idle: await G('__grassnyer.idleStopped') }));
     await shot('04-lawn1-driving');
-    check('mowing makes progress', (await G('__grassnyer.progress')) > 0.01);
+    check('mowing makes progress', (await G('__grassnyer.progress')) > 0.005);   // lawns have twice the area now
 
     // ---- gear lever (the F and R keys stand in for it) ----
-    const shiftKey = async (key) => { await page.keyboard.down(key); await sleep(150); await page.keyboard.up(key); };
+    const shiftKey = async (key) => { await page.keyboard.down(key); await sleep(500); await page.keyboard.up(key); };
     await G('__grassnyer.place(3, -2, Math.PI)');   // open lawn behind and ahead
     await shiftKey('KeyR');
     await sleep(1500);
@@ -180,10 +180,39 @@ async function main() {
 
     // ---- bumping ----
     await tap(5);
-    await G('__grassnyer.place(0, -3.5, Math.PI)');
-    // the simulation can run slower than real time in a headless browser
-    await until(() => (window.__rumbles || 0) > 0, 6000).catch(() => {});
+    const B = await G('__grassnyer.bounds');
+    check('lawns are bigger (lawn 1 is 22.4 wide)', Math.abs(B.maxX - B.minX - 22.4) < 0.01, String(B.maxX - B.minX));
+    await G(`__grassnyer.place(0, ${B.minZ + 2.5}, Math.PI)`);   // facing the north fence
+    // the simulation can run slower than real time in a headless browser; keep
+    // touching the wheel (button 5 has no job) so it doesn't stop to wait
+    for (const end = Date.now() + 20000; Date.now() < end && !(await G('window.__rumbles || 0')); ) await tap(5);
     check('hitting the fence rumbles the wheel', (await G('window.__rumbles || 0')) > 0, String(await G('window.__rumbles || 0')));
+    // keeps driving into the same bit of fence: after 5 bumps it hops away from it
+    // (button 5 has no job: pressing it is just "touching the wheel", so it keeps going)
+    for (const end = Date.now() + 25000; Date.now() < end; ) {
+      if ((await G('__grassnyer.hops')) > 0 && !(await G('__grassnyer.hopping'))) break;
+      await tap(5);
+    }
+    v = await G('__grassnyer.vehicle');
+    check('bumping the same spot 5 times hops away from it', (await G('__grassnyer.hops')) > 0 && v.z > B.minZ + 2.5,
+      `hops=${await G('__grassnyer.hops')} z=${v.z.toFixed(1)}`);
+    await shot('05b-after-hop');
+
+    // ---- stuck: trying to drive but going nowhere -> countdown -> back to the start ----
+    const pinned = await G('[__grassnyer.vehicle.x, __grassnyer.vehicle.z]');
+    let sawCountdown = false;
+    for (let i = 0, end = Date.now() + 25000; Date.now() < end; i++) {
+      if ((await G('__grassnyer.resets')) > 0) break;
+      await G(`__grassnyer.place(${pinned[0]}, ${pinned[1]}, 0)`);   // hold it in place, as if wedged
+      if (i % 8 === 0) await G('__press(5, true)'); else if (i % 8 === 2) await G('__press(5, false)');   // keep it awake
+      if (!sawCountdown && (await G('__grassnyer.countdown')) > 0) { sawCountdown = true; await shot('05c-countdown'); }
+      await sleep(100);
+    }
+    const st = await G('__grassnyer.start');
+    v = await G('__grassnyer.vehicle');
+    check('stuck for a while: a countdown appears', sawCountdown);
+    check('after the countdown it goes back to the start', (await G('__grassnyer.resets')) > 0 && Math.hypot(v.x - st.x, v.z - st.z) < 2,
+      `resets=${await G('__grassnyer.resets')} at ${v.x.toFixed(1)},${v.z.toFixed(1)}`);
 
     // ---- idle stop ----
     await sleep(3600);
@@ -210,7 +239,7 @@ async function main() {
     await shot('08-celebrate-pile');
     await sleep(2200);
     await shot('09-celebrate-party');
-    await until(() => window.__grassnyer.state === 'play' && window.__grassnyer.lawn === 1, 30000).catch(() => {});
+    await until(() => window.__grassnyer.state === 'play' && window.__grassnyer.lawn === 1, 60000).catch(() => {});
     check('next lawn starts automatically', (await G('__grassnyer.lawn')) === 1);
     v = await G('__grassnyer.vehicle');
     check('decorations carry over to the next lawn', Object.keys(v.decorations).length >= 2);

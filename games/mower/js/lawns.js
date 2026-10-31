@@ -5,7 +5,12 @@
 // Obstacle types (see world.js): tree, bush, flowers (w,d), bench (w),
 // gnome, pond (r), sandpit (w,d), hay, rock (r), path (w,d).
 
-export const LAWNS = [
+// Every lawn is drawn GROW times bigger than the numbers below (the parent
+// asked for bigger fields, 2026-10-31). Obstacles keep their size but spread
+// out with the lawn; paths also get longer so they still reach the edge.
+const GROW = 1.4;
+
+const PLANS = [
   {
     name: 'Back garden', w: 16, h: 12, edge: 'fence', backdrop: 'house',
     obstacles: [
@@ -61,3 +66,10 @@ export const LAWNS = [
     ],
   },
 ];
+
+export const LAWNS = PLANS.map((p) => ({
+  ...p,
+  w: p.w * GROW,
+  h: p.h * GROW,
+  obstacles: p.obstacles.map((o) => ({ ...o, x: o.x * GROW, z: o.z * GROW, ...(o.type === 'path' ? { d: o.d * GROW } : {}) })),
+}));

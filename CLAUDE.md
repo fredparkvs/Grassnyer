@@ -47,7 +47,8 @@ don't prove it looks right. On the Pi a few timing checks fail even on
 unchanged code (slow software rendering); see `docs/wheel-notes.md`.
 
 Useful URL params on the game page: `idleStop` and `idleSleep` (seconds),
-`hintAfter` (seconds), `scale` (fixed render scale, e.g. 0.6).
+`hintAfter` (seconds), `stuckAfter` (seconds before the back-to-the-start
+countdown), `scale` (fixed render scale, e.g. 0.6).
 `window.__grassnyer` exposes state and test hooks (see the end of main.js).
 Keyboard: arrows steer/gas/brake, Space = Stop/Go, C = paint, F/R = gear lever
 forward/reverse, Ctrl+Shift+P = parent settings.
