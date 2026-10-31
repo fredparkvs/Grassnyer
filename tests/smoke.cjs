@@ -1,0 +1,246 @@
+// End-to-end smoke test: runs the real game in headless Chromium with a
+// simulated wheel, walks through every part of the flow, and saves
+// screenshots to test-output/.
+//
+//   npm test                      (or: node tests/smoke.cjs)
+//   CHROMIUM_PATH=/usr/bin/chromium node tests/smoke.cjs   (on the Pi)
+//
+// Starts its own server on a spare port with a throwaway settings folder, so
+// it never touches the live game or its saved settings.
+
+const { spawn } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const net = require('net');
+
+let pw, bundledBrowser = true;
+try { pw = require('playwright'); } catch (e) { pw = require('playwright-core'); bundledBrowser = false; }
+
+const ROOT = path.resolve(__dirname, '..');
+const OUT = path.join(ROOT, 'test-output');
+fs.mkdirSync(OUT, { recursive: true });
+
+const results = [];
+function check(name, ok, detail = '') {
+  results.push({ name, ok, detail });
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  (' + detail + ')' : ''}`);
+}
+
+function freePort() {
+  return new Promise((resolve) => {
+    const s = net.createServer();
+    s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); });
+  });
+}
+
+async function main() {
+  const port = await freePort();
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'grassnyer-test-'));
+  const server = spawn('python3', [path.join(ROOT, 'kit/server.py')], {
+    env: { ...process.env, GRASSNYER_PORT: String(port), GRASSNYER_DATA: data, GRASSNYER_ROOT: ROOT, GRASSNYER_ALLOW_SYSTEM: '' },
+    stdio: 'ignore',
+  });
+  await new Promise((r) => setTimeout(r, 800));
+
+  const launch = {
+    args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'],
+  };
+  // playwright-core has no browser of its own: use the system Chromium (the Pi's)
+  const systemChromium = ['/usr/bin/chromium', '/usr/bin/chromium-browser'].find((p) => fs.existsSync(p));
+  if (process.env.CHROMIUM_PATH) launch.executablePath = process.env.CHROMIUM_PATH;
+  else if (!bundledBrowser && systemChromium) launch.executablePath = systemChromium;
+  const browser = await pw.chromium.launch(launch);
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  await page.addInitScript({ path: path.join(__dirname, 'fakepad.js') });
+
+  const G = (expr) => page.evaluate(expr);
+  const sleep = (ms) => page.waitForTimeout(ms);
+  const until = (fn, timeout = 30000) => page.waitForFunction(fn, null, { timeout, polling: 100 });
+  const shot = (name) => page.screenshot({ path: path.join(OUT, `${name}.png`) });
+  const tap = async (i) => { await G(`__press(${i}, true)`); await sleep(200); await G(`__press(${i}, false)`); await sleep(250); };
+  const nudge = async (v) => { await G(`__setSteer(${v})`); await sleep(350); await G('__setSteer(0)'); await sleep(350); };
+
+  try {
+    await page.goto(`http://127.0.0.1:${port}/?idleStop=3&idleSleep=14&hintAfter=2`);
+    await until(() => window.__grassnyer && window.__grassnyer.state === 'garage');
+    check('picker skips straight to the only game', page.url().includes('/games/mower/'));
+    await sleep(600);
+    await shot('01-garage-mower');
+
+    // ---- garage ----
+    await nudge(1);
+    let gar = await G('__grassnyer.garage');
+    check('turning the wheel switches to the tractor', gar.type === 'tractor', gar.type);
+    await sleep(400);
+    await shot('02-garage-tractor');
+    await tap(0);
+    await nudge(1);
+    gar = await G('__grassnyer.garage');
+    check('colour step and turning picks the next colour', gar.step === 'colour' && gar.colour === 1, JSON.stringify(gar));
+    await shot('03-garage-colour');
+    await tap(0);
+    await until(() => window.__grassnyer.state === 'play');
+    let v = await G('__grassnyer.vehicle');
+    check('lawn starts with the chosen vehicle and colour', v.type === 'tractor' && v.colour === 1, `${v.type} ${v.colour}`);
+    check('starts plain (no decorations)', Object.keys(v.decorations).length === 0);
+    await sleep(1500);
+    v = await G('__grassnyer.vehicle');
+    check('auto-drive moves forward', v.speed > 1, JSON.stringify({ speed: v.speed, idle: await G('__grassnyer.idleStopped') }));
+    await shot('04-lawn1-driving');
+    check('mowing makes progress', (await G('__grassnyer.progress')) > 0.01);
+
+    // ---- magic paint ----
+    await tap(1);
+    v = await G('__grassnyer.vehicle');
+    check('magic paint changes the colour', v.colour === 2, String(v.colour));
+
+    // ---- presents ----
+    await tap(5); // any button counts as activity, so auto-drive keeps going
+    const presents = await G('__grassnyer.presents');
+    check('3 presents hidden in the lawn', presents.length === 3, String(presents.length));
+    for (const p of presents) {
+      await G(`__grassnyer.place(${p.x}, ${p.z + 0.3}, Math.PI)`);
+      await sleep(1200);
+    }
+    v = await G('__grassnyer.vehicle');
+    check('finding presents decorates the vehicle', (await G('__grassnyer.gifts')) === 3 && Object.keys(v.decorations).length >= 2,
+      JSON.stringify(v.decorations));
+    await G('__grassnyer.place(0, 2, Math.PI)');
+    await sleep(800);
+    await shot('05-decorated');
+
+    // ---- bumping ----
+    await tap(5);
+    await G('__grassnyer.place(0, -3.5, Math.PI)');
+    await sleep(1500);
+    console.log('   bump debug', JSON.stringify(await G('__grassnyer.vehicle')), await G('__grassnyer.idleStopped'));
+    check('hitting the fence rumbles the wheel', (await G('window.__rumbles || 0')) > 0, String(await G('window.__rumbles || 0')));
+
+    // ---- idle stop ----
+    await sleep(3600);
+    check('vehicle waits when the wheel is left alone', await G('__grassnyer.idleStopped'));
+    await shot('06-idle-wheel-hint');
+    await nudge(0.4);
+    await sleep(800);
+    check('touching the wheel carries on', !(await G('__grassnyer.idleStopped')));
+
+    // ---- hints ----
+    await tap(0); // stop
+    await G('__grassnyer.mowTo(0.85)');
+    await until(() => window.__grassnyer.hints, 8000).catch(() => {});
+    check('sparkles appear after a while without mowing', await G('__grassnyer.hints'));
+    await sleep(600);
+    await shot('07-hints');
+
+    // ---- celebration ----
+    await G('__grassnyer.mowTo(0.96)');
+    await tap(0); // go again
+    await until(() => window.__grassnyer.state === 'celebrate', 5000).catch(() => {});
+    check('lawn finishes at 95%', (await G('__grassnyer.state')) === 'celebrate');
+    await sleep(4300);
+    await shot('08-celebrate-pile');
+    await sleep(2200);
+    await shot('09-celebrate-party');
+    await until(() => window.__grassnyer.state === 'play' && window.__grassnyer.lawn === 1, 30000).catch(() => {});
+    check('next lawn starts automatically', (await G('__grassnyer.lawn')) === 1);
+    v = await G('__grassnyer.vehicle');
+    check('decorations carry over to the next lawn', Object.keys(v.decorations).length >= 2);
+    await sleep(800);
+    await shot('10-lawn2');
+
+    // ---- all lawns render ----
+    for (const i of [2, 3, 4]) {
+      await G(`__grassnyer.jumpToLawn(${i})`);
+      await until(`window.__grassnyer.state === 'play' && window.__grassnyer.lawn === ${i}`, 20000);
+      await sleep(900);
+      await shot(`11-lawn${i + 1}`);
+      check(`lawn ${i + 1} has grass to mow`, (await G('__grassnyer.tufts')) > 1000, String(await G('__grassnyer.tufts')));
+    }
+
+    // ---- idle sleep and waking ----
+    await until(() => window.__grassnyer.state === 'to-sleep', 25000).catch(() => {});
+    check('left alone long enough, it heads to the shed', ['to-sleep', 'sleep'].includes(await G('__grassnyer.state')));
+    await sleep(3200);
+    await shot('12-into-shed');
+    await until(() => window.__grassnyer.state === 'sleep', 10000).catch(() => {});
+    check('falls asleep', (await G('__grassnyer.state')) === 'sleep');
+    await shot('13-sleep');
+    await nudge(0.6);
+    await until(() => window.__grassnyer.state === 'garage', 5000).catch(() => {});
+    gar = await G('__grassnyer.garage');
+    check('a touch wakes it into the garage', (await G('__grassnyer.state')) === 'garage');
+    check('new session: plain vehicle', Object.keys(gar.decorations || {}).length === 0, JSON.stringify(gar.decorations));
+    check('new session: vehicle and colour remembered', gar.type === 'tractor' && gar.colour === 2, JSON.stringify(gar));
+    await tap(0); await tap(0);
+    await until(() => window.__grassnyer.state === 'play');
+    check('new session moves on to the next lawn', (await G('__grassnyer.lawn')) === 0, String(await G('__grassnyer.lawn')));
+
+    // ---- play timer: ends in the shed, only the parent buttons wake it ----
+    await page.evaluate(async () => {
+      const s = await (await fetch('/api/settings')).json();
+      return s;
+    });
+    await page.keyboard.press('Control+Shift+P');
+    await sleep(400);
+    const menuOpen = await G("!document.querySelector('.parent-menu').classList.contains('hidden')");
+    check('Ctrl+Shift+P opens the parent settings', menuOpen);
+    // move to "Play timer" (row 7) and set 10 minutes
+    for (let i = 0; i < 6; i++) { await page.keyboard.press('ArrowDown'); await sleep(80); }
+    await page.keyboard.press('ArrowRight');
+    await sleep(300);
+    await shot('14-parent-menu');
+    await page.keyboard.press('Escape');
+    await sleep(800);
+    let saved = await page.evaluate(async () => (await fetch('/api/settings')).json());
+    check('settings are saved to the server', saved.playTimerMin === 10, String(saved.playTimerMin));
+    await G('__grassnyer.expireTimer()');
+    await until(() => window.__grassnyer.state === 'sleep', 15000).catch(() => {});
+    check('play timer sends it to sleep', (await G('__grassnyer.state')) === 'sleep');
+    await nudge(0.8);
+    await sleep(500);
+    check('after the timer, a wheel touch does not wake it', (await G('__grassnyer.state')) === 'sleep');
+    await G('__press(6, true); __press(7, true)');
+    await until(() => window.__grassnyer.state === 'garage', 9000).catch(() => {});
+    await G('__press(6, false); __press(7, false)');
+    check('holding the parent buttons wakes it', (await G('__grassnyer.state')) === 'garage');
+
+    // ---- wheel setup wizard ----
+    await page.keyboard.press('Control+Shift+P');
+    await sleep(300);
+    for (let i = 0; i < 7; i++) { await page.keyboard.press('ArrowDown'); await sleep(60); }
+    await page.keyboard.press('Enter');
+    await sleep(3000); // hands off
+    await G('__setSteer(-0.9)'); await sleep(1100);
+    await G('__setSteer(0.85)'); await sleep(1100);
+    await G('__setSteer(0)');
+    await G('__pad.axes[5] = 1'); await sleep(900); await G('__pad.axes[5] = -1'); await sleep(300);
+    await G('__pad.axes[2] = 1'); await sleep(900); await G('__pad.axes[2] = -1'); await sleep(300);
+    for (const b of [3, 4, 9, 10]) await tap(b);
+    await shot('15-wheel-setup');
+    await tap(3);
+    await sleep(600);
+    saved = await page.evaluate(async () => (await fetch('/api/settings')).json());
+    const wm = saved.wheel || {};
+    check('wheel setup saves the mapping', wm.steer?.axis === 0 && wm.gas?.axis === 5 && wm.brake?.axis === 2
+      && wm.goButton === 3 && wm.paintButton === 4 && wm.parentButtons?.join() === '9,10', JSON.stringify(wm));
+    await page.keyboard.press('Escape');
+
+    check('no errors in the page', errors.length === 0, errors.slice(0, 3).join(' | '));
+  } catch (e) {
+    check('test run completed', false, e.message);
+    await shot('99-failure').catch(() => {});
+  } finally {
+    await browser.close();
+    server.kill();
+    fs.rmSync(data, { recursive: true, force: true });
+  }
+  const failed = results.filter((r) => !r.ok);
+  console.log(`\n${results.length - failed.length}/${results.length} passed. Screenshots in test-output/`);
+  process.exit(failed.length ? 1 : 0);
+}
+
+main();
