@@ -5,7 +5,7 @@
 // keyboard (Up/Down to move, Left/Right/Enter to change, Escape to close).
 
 import { settings, updateSettings, saveNow } from './settings.js';
-import { defaultMapping, normSteer } from './input.js';
+import { defaultMapping, normSteer, level } from './input.js';
 
 const TIMER_STEPS = [0, 10, 15, 20, 30, 45, 60];
 
@@ -218,11 +218,13 @@ const STEPS = [
   { id: 'right', title: 'Turn the wheel fully RIGHT', text: 'Turn it as far as it goes and hold it there.' },
   { id: 'gas', title: 'Press the GAS pedal all the way', text: 'Hold it down. Press Enter to skip if you have no pedals.', optional: true },
   { id: 'brake', title: 'Press the BRAKE pedal all the way', text: 'Hold it down. Press Enter to skip.', optional: true },
+  { id: 'gearFwd', title: 'Push the GEAR LEVER forward', text: 'Hold it there for a moment. It drives forwards. Press Enter to skip if there is no gear lever.', optional: true },
+  { id: 'gearRev', title: 'Pull the GEAR LEVER back', text: 'Hold it there for a moment. It reverses. Press Enter to skip.', optional: true },
   { id: 'go', title: 'Press the STOP / GO button', text: 'Pick a big button your child can find easily.' },
   { id: 'paint', title: 'Press the MAGIC PAINT button', text: 'A different button. It changes the vehicle colour.' },
   { id: 'parent1', title: 'Press the FIRST parent button', text: 'Pick one your child is unlikely to hold down.' },
   { id: 'parent2', title: 'Press the SECOND parent button', text: 'Holding both for 5 seconds opens this screen.' },
-  { id: 'test', title: 'All done. Try it!', text: 'Turn the wheel and press the pedals to check. Press Stop/Go or Enter to save.' },
+  { id: 'test', title: 'All done. Try it!', text: 'Turn the wheel, press the pedals and move the gear lever to check. Press Stop/Go or Enter to save.' },
 ];
 
 class WheelWizard {
@@ -230,12 +232,13 @@ class WheelWizard {
     this.wheel = wheel;
     this.onDone = onDone;
     this.step = 0;
-    this.map = { ...defaultMapping(wheel.pad), steer: null, gas: null, brake: null };
+    this.map = { ...defaultMapping(wheel.pad), steer: null, gas: null, brake: null, gearForward: null, gearReverse: null };
     this.baseline = null;
     this.stepStart = performance.now();
     this.holdSince = 0;
     this.needRelease = false;
     this.used = new Set();
+    this.usedRaw = new Set();
   }
 
   get current() { return STEPS[this.step]; }
@@ -314,6 +317,31 @@ class WheelWizard {
         this.holdSince = 0;
         if (elapsed > 15) this.next();
       }
+    } else if (s.id === 'gearFwd' || s.id === 'gearRev') {
+      // a button the browser sees, an axis, or a button only the server sees
+      // (some wheels' gear levers vanish in Chromium's built-in layout)
+      const key = s.id === 'gearFwd' ? 'gearForward' : 'gearReverse';
+      const exclude = [this.map.steer.axis, this.map.gas?.axis, this.map.brake?.axis, this.map.gearForward?.axis].filter((a) => a != null);
+      const cand = this._biggestAxis(axes, exclude);
+      const btn = pressed.findIndex((p, i) => p && !this.used.has(i));
+      const raw = [...this.wheel.raw.down].find((n) => !this.usedRaw.has(n));
+      if (btn >= 0) {
+        this.map[key] = { button: btn };
+        this.used.add(btn);
+        this.next();
+      } else if (cand && Math.abs(cand.delta) > 0.6) {
+        if (!this.holdSince) this.holdSince = now;
+        if (now - this.holdSince > 300) {
+          this.map[key] = { axis: cand.axis, rest: this.baseline[cand.axis], full: axes[cand.axis] };
+          this.next();
+        }
+      } else if (raw != null && !pressed.some(Boolean)) {
+        this.map[key] = { raw };
+        this.usedRaw.add(raw);
+        this.next();
+      } else {
+        this.holdSince = 0;
+      }
     } else if (['go', 'paint', 'parent1', 'parent2'].includes(s.id)) {
       const btn = pressed.findIndex((p, i) => p && !this.used.has(i));
       if (btn >= 0) {
@@ -360,7 +388,10 @@ class WheelWizard {
       test = `<div class="wz-test">
         <div>Steering <div class="wz-bar"><i style="left:${(steer + 1) * 50}%"></i></div></div>
         <div>Gas <div class="wz-bar"><i style="left:${pedal(m.gas) * 100}%"></i></div></div>
-        <div>Brake <div class="wz-bar"><i style="left:${pedal(m.brake) * 100}%"></i></div></div></div>`;
+        <div>Brake <div class="wz-bar"><i style="left:${pedal(m.brake) * 100}%"></i></div></div>
+        <div>Gear lever <b>${!m.gearForward && !m.gearReverse ? 'none'
+          : level(pad, m.gearForward, this.wheel.raw) > 0.6 ? 'FORWARD'
+          : level(pad, m.gearReverse, this.wheel.raw) > 0.6 ? 'REVERSE' : '&middot;'}</b></div></div>`;
     }
     root.innerHTML = `
       <div class="pm-panel wizard">

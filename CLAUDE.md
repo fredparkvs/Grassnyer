@@ -13,7 +13,8 @@ without asking; if something in the spec turns out to be impractical, say so.
 
 ```
 index.html, kit/picker.js   game picker (skips itself while there is one game)
-kit/server.py               stdlib-only server: static files, settings JSON, update/goback/quit
+kit/server.py               stdlib-only server: static files, settings JSON, update/goback/quit,
+                            raw joystick buttons (/api/joystick) for buttons Chromium loses
 kit/input.js                wheel via Gamepad API + keyboard; calibration lives in settings.wheel
 kit/settings.js             shared settings (GET/POST /api/settings)
 kit/audio.js                all sounds synthesised in WebAudio; voice/ clips override fallbacks
@@ -39,13 +40,17 @@ npm test                        # full flow, screenshots in test-output/
 ```
 
 `npm test` starts its own server on a spare port with a throwaway settings
-folder. Always look at the screenshots in `test-output/` after visual changes;
-passing checks don't prove it looks right.
+folder, a fake joystick, a throwaway `HOME` (so installed native games stay
+hidden) and no display variables (so nothing can open on the TV). Always look
+at the screenshots in `test-output/` after visual changes; passing checks
+don't prove it looks right. On the Pi a few timing checks fail even on
+unchanged code (slow software rendering); see `docs/wheel-notes.md`.
 
 Useful URL params on the game page: `idleStop` and `idleSleep` (seconds),
 `hintAfter` (seconds), `scale` (fixed render scale, e.g. 0.6).
 `window.__grassnyer` exposes state and test hooks (see the end of main.js).
-Keyboard: arrows steer/gas/brake, Space = Stop/Go, C = paint, Ctrl+Shift+P = parent settings.
+Keyboard: arrows steer/gas/brake, Space = Stop/Go, C = paint, F/R = gear lever
+forward/reverse, Ctrl+Shift+P = parent settings.
 
 ## On the Raspberry Pi
 
@@ -85,10 +90,16 @@ Rules:
 
 ### Wheel bring-up
 
-The wheel is a generic "Vibration Steering Racing Wheel & Pedals", most
-likely the DragonRise / PXN V900 family: USB `11ff:0511` in X-input mode
-(kernel `xpad` driver, should just work), `0079:1864` in D-input mode. Holding
-MODE for 3 seconds switches modes. One manual says rumble only works in D-input.
+**Measured on the Pi (see `docs/wheel-notes.md`):** the wheel reports as a PS3
+pad, "SHANWAN PS3 GamePad" (`054c:0268`, `hid-sony`), with no X axis. Chromium's
+PS3 layout gives steering correctly on axis 0 but loses L2/R2, which is
+the gear lever, so the game server reads those itself (`/api/joystick`). Pedals,
+rumble and the MODE button are still untested.
+
+Before it was plugged in, the guess was the DragonRise / PXN V900 family: USB
+`11ff:0511` in X-input mode (kernel `xpad` driver), `0079:1864` in D-input
+mode. Holding MODE for 3 seconds switches modes. One manual says rumble only
+works in D-input.
 
 1. `bash pi/wheel-check.sh` in each mode, with the parent's help.
 2. `evtest`: confirm steering is one axis and gas/brake are separate axes.

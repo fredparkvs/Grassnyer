@@ -11,7 +11,21 @@ const PEDAL_DEADZONE = 0.08;
 const ACTIVITY_STEER = 0.06;
 const PARENT_HOLD_SECONDS = 5;
 
-export function defaultMapping(pad) {
+// The gear lever (gearForward / gearReverse) is like a pedal: { button: n },
+// { axis: n, rest, full }, or { raw: n } for a button the browser can't see
+// (read by the game server, see RawJoystick below). null means no lever.
+
+// Wheels found by testing on the Pi (docs/wheel-notes.md), matched by the
+// name the driver reports. The "SHANWAN PS3 GamePad" wheel pretends to be a
+// PS3 pad but has no X axis, which throws Chromium's PS3 layout off by one:
+// steering still lands on axis 0, but L2/R2 (its gear lever) are lost.
+const KNOWN_WHEELS = [
+  { name: /SHANWAN PS3 GamePad/i, gearForward: { raw: 7 }, gearReverse: { raw: 6 } },
+];
+
+export function defaultMapping(pad, rawName = '') {
+  const known = KNOWN_WHEELS.find((w) => w.name.test(rawName) || w.name.test(pad?.id || ''));
+  const lever = { gearForward: known?.gearForward || null, gearReverse: known?.gearReverse || null };
   if (pad && pad.mapping === 'standard') {
     return {
       gamepadId: null,
@@ -21,6 +35,7 @@ export function defaultMapping(pad) {
       goButton: 0,
       paintButton: 1,
       parentButtons: [8, 9],
+      ...lever,
     };
   }
   // Linux xpad / joydev order: X, Y, Z(LT), RX, RY, RZ(RT), hat X, hat Y.
@@ -32,7 +47,47 @@ export function defaultMapping(pad) {
     goButton: 0,
     paintButton: 1,
     parentButtons: [6, 7],
+    ...lever,
   };
+}
+
+// Buttons read straight from the wheel by the game server (GET /api/joystick),
+// numbered as Linux numbers them. Only controls mapped as { raw: n } use them.
+export class RawJoystick {
+  constructor(url = '/api/joystick') {
+    this.name = '';
+    this.down = new Set();
+    this.pending = new Set();   // pressed since the last poll, even if already let go
+    this.lastChange = 0;
+    this._presses = null;
+    if (typeof EventSource === 'undefined') return;
+    try {
+      this.source = new EventSource(url);
+      this.source.onmessage = (e) => { try { this._update(JSON.parse(e.data)); } catch (err) { /* ignore */ } };
+      // lost the server (e.g. restarting after Update): it reconnects by itself
+      this.source.onerror = () => { this._presses = null; this.down = new Set(); };
+    } catch (e) { /* no server: the Gamepad API and keyboard still work */ }
+  }
+
+  _update(s) {
+    this.name = s.name || '';
+    const down = new Set(s.buttons || []);
+    const presses = s.presses || {};
+    if (this._presses) {   // the first update after (re)connecting is only a starting point
+      for (const [n, c] of Object.entries(presses)) {
+        if (c > (this._presses[n] || 0)) this.pending.add(Number(n));
+      }
+      if (this.pending.size || down.size !== this.down.size || [...down].some((n) => !this.down.has(n))) {
+        this.lastChange = performance.now();
+      }
+    }
+    this._presses = presses;
+    this.down = down;
+  }
+
+  isDown(n) { return this.down.has(n) || this.pending.has(n); }
+
+  endPoll() { this.pending.clear(); }
 }
 
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -46,7 +101,10 @@ export class Wheel {
     this.brake = 0;        // 0..1
     this.go = makeButton();
     this.paint = makeButton();
+    this.gearForward = makeButton();  // gear lever pushed forward
+    this.gearReverse = makeButton();  // gear lever pulled back
     this.any = makeButton();      // any wheel button or confirm key
+    this.raw = new RawJoystick(); // buttons the browser can't see, via the game server
     this.connected = false;
     this.padId = '';
     this.lastActivity = performance.now();
@@ -77,7 +135,15 @@ export class Wheel {
   }
 
   mapping() {
-    return settings().wheel || defaultMapping(this.pad);
+    const saved = settings().wheel;
+    if (!saved) return defaultMapping(this.pad, this.raw.name);
+    if (saved.gearForward !== undefined) return saved;
+    // Saved by a wheel setup from before the gear lever existed: borrow the
+    // default lever, unless setup gave those buttons another job.
+    const d = defaultMapping(this.pad, this.raw.name);
+    const taken = [saved.gas?.button, saved.brake?.button, saved.goButton, saved.paintButton, ...(saved.parentButtons || [])];
+    const free = (g) => (g && (g.button == null || !taken.includes(g.button)) ? g : null);
+    return { ...saved, gearForward: free(d.gearForward), gearReverse: free(d.gearReverse) };
   }
 
   findPad() {
@@ -100,6 +166,7 @@ export class Wheel {
     // ---- wheel -------------------------------------------------------
     let steer = 0, gas = 0, brake = 0;
     let goDown = false, paintDown = false, anyDown = false;
+    let fwdDown = false, revDown = false;
     let parentDown = false;
     if (pad) {
       steer = normSteer(pad.axes[m.steer.axis] ?? 0, m.steer);
@@ -109,14 +176,21 @@ export class Wheel {
       const btn = (i) => i != null && i >= 0 && !!pad.buttons[i]?.pressed;
       goDown = btn(m.goButton);
       paintDown = btn(m.paintButton);
-      const pedalButtons = [m.gas?.button, m.brake?.button];
-      anyDown = pad.buttons.some((b, i) => b.pressed && !pedalButtons.includes(i));
+      // pedals and the gear lever are for driving, not for "press to choose"
+      const drivingButtons = [m.gas?.button, m.brake?.button, m.gearForward?.button, m.gearReverse?.button];
+      anyDown = pad.buttons.some((b, i) => b.pressed && !drivingButtons.includes(i));
       parentDown = m.parentButtons?.length === 2 && btn(m.parentButtons[0]) && btn(m.parentButtons[1]);
 
       const changed = pad.buttons.some((b, i) => b.pressed !== (this._prevButtons[i] || false));
       if (changed) this.lastActivity = now;
       this._prevButtons = pad.buttons.map((b) => b.pressed);
     }
+    // the gear lever may come from the server even before the browser shows the wheel
+    fwdDown = level(pad, m.gearForward, this.raw) > 0.6;
+    revDown = level(pad, m.gearReverse, this.raw) > 0.6;
+    if (fwdDown || revDown) this.lastActivity = now;
+    if (this.raw.lastChange > this.lastActivity) this.lastActivity = this.raw.lastChange;
+    this.raw.endPoll();
 
     // ---- keyboard ----------------------------------------------------
     const k = this._keys;
@@ -128,8 +202,10 @@ export class Wheel {
     if (k.has('ArrowDown') || k.has('KeyS')) brake = 1;
     if (k.has('Space') || k.has('Enter')) { goDown = true; anyDown = true; }
     if (k.has('KeyC')) { paintDown = true; anyDown = true; }
+    if (k.has('KeyF')) fwdDown = true;   // gear lever forward
+    if (k.has('KeyR')) revDown = true;   // gear lever back (reverse)
 
-    if (!this.enabled) { steer = 0; gas = 0; brake = 0; goDown = paintDown = anyDown = false; }
+    if (!this.enabled) { steer = 0; gas = 0; brake = 0; goDown = paintDown = anyDown = fwdDown = revDown = false; }
 
     // dead zone, then rescale so small turns still register smoothly
     const a = Math.abs(steer);
@@ -145,6 +221,8 @@ export class Wheel {
 
     setButton(this.go, goDown);
     setButton(this.paint, paintDown);
+    setButton(this.gearForward, fwdDown);
+    setButton(this.gearReverse, revDown);
     setButton(this.any, anyDown);
 
     // ---- parent combo ------------------------------------------------
@@ -199,6 +277,19 @@ export class Wheel {
       }
     } catch (e) { /* rumble is a bonus, never an error */ }
   }
+}
+
+// 0..1 for a { button }, { axis, rest, full } or { raw } control, such as the
+// gear lever. No "seen at rest" check like the pedals: an axis that reads 0
+// before it first moves is half way, which is not enough to count as pushed.
+export function level(pad, c, raw) {
+  if (!c) return 0;
+  if (c.raw != null) return raw?.isDown(c.raw) ? 1 : 0;
+  if (!pad) return 0;
+  if (c.button != null) return pad.buttons[c.button]?.value ?? 0;
+  const v = pad.axes[c.axis];
+  if (v == null) return 0;
+  return clamp((v - c.rest) / ((c.full - c.rest) || 1), 0, 1);
 }
 
 // Works whichever way round the wheel reports left and right.

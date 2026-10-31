@@ -34,11 +34,34 @@ function freePort() {
   });
 }
 
+// Writes button presses into the fake /dev/input/js0 (a FIFO) that the test
+// server reads, one button number per line on stdin.
+const JOYSTICK_WRITER = `
+import os, struct, sys, time
+for _ in range(100):
+    try:
+        fd = os.open(sys.argv[1], os.O_WRONLY | os.O_NONBLOCK); break
+    except OSError: time.sleep(0.1)
+else: sys.exit(1)
+print('ready', flush=True)
+for line in sys.stdin:
+    n = int(line)
+    os.write(fd, struct.pack('IhBB', 0, 1, 1, n)); time.sleep(0.15)
+    os.write(fd, struct.pack('IhBB', 0, 0, 1, n))
+`;
+
 async function main() {
   const port = await freePort();
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'grassnyer-test-'));
+  // a fake joystick, so the server never reads a real wheel during tests
+  const input = path.join(data, 'input');
+  fs.mkdirSync(input);
+  require('child_process').execSync(`mkfifo ${path.join(input, 'js0')}`);
   const server = spawn('python3', [path.join(ROOT, 'kit/server.py')], {
-    env: { ...process.env, GRASSNYER_PORT: String(port), GRASSNYER_DATA: data, GRASSNYER_ROOT: ROOT, GRASSNYER_ALLOW_SYSTEM: '' },
+    // HOME too, so native games installed on this machine (SuperTuxKart on the Pi)
+    // stay hidden and the picker still skips itself
+    env: { ...process.env, GRASSNYER_PORT: String(port), GRASSNYER_DATA: data, GRASSNYER_ROOT: ROOT, GRASSNYER_ALLOW_SYSTEM: '',
+      GRASSNYER_INPUT_DIR: input, HOME: data },
     stdio: 'ignore',
   });
   await new Promise((r) => setTimeout(r, 800));
@@ -100,6 +123,40 @@ async function main() {
     check('auto-drive moves forward', v.speed > 1, JSON.stringify({ speed: v.speed, idle: await G('__grassnyer.idleStopped') }));
     await shot('04-lawn1-driving');
     check('mowing makes progress', (await G('__grassnyer.progress')) > 0.01);
+
+    // ---- gear lever (the F and R keys stand in for it) ----
+    const shiftKey = async (key) => { await page.keyboard.down(key); await sleep(150); await page.keyboard.up(key); };
+    await G('__grassnyer.place(3, -2, Math.PI)');   // open lawn behind and ahead
+    await shiftKey('KeyR');
+    await sleep(1500);
+    v = await G('__grassnyer.vehicle');
+    check('gear lever back reverses', (await G('__grassnyer.gear')) === -1 && v.speed < -0.8, String(v.speed.toFixed(2)));
+    await shot('04b-reversing');
+    await shiftKey('KeyF');
+    await sleep(1500);
+    v = await G('__grassnyer.vehicle');
+    check('gear lever forward drives forwards again', (await G('__grassnyer.gear')) === 1 && v.speed > 1, String(v.speed.toFixed(2)));
+
+    // ---- a gear lever only the server can see (Chromium loses it on some wheels) ----
+    await G(`Promise.all([import('/kit/settings.js'), import('/kit/input.js')]).then(([s, i]) =>
+      s.updateSettings({ wheel: { ...i.defaultMapping(window.__pad), gearForward: { raw: 7 }, gearReverse: { raw: 6 } } }))`);
+    await G('__grassnyer.place(3, -2, Math.PI)');
+    const writer = spawn('python3', ['-c', JOYSTICK_WRITER, path.join(input, 'js0')], { stdio: ['pipe', 'pipe', 'ignore'] });
+    const ready = await Promise.race([
+      new Promise((r) => writer.stdout.once('data', () => r(true))),
+      new Promise((r) => setTimeout(() => r(false), 12000)),
+    ]);
+    writer.stdin.write('6\n');
+    await sleep(1500);
+    v = await G('__grassnyer.vehicle');
+    check('server-read gear lever reverses', ready && (await G('__grassnyer.gear')) === -1 && v.speed < -0.8, `ready=${ready} speed=${v.speed.toFixed(2)}`);
+    writer.stdin.write('7\n');
+    await sleep(1500);
+    v = await G('__grassnyer.vehicle');
+    check('server-read gear lever drives forwards', (await G('__grassnyer.gear')) === 1 && v.speed > 1, String(v.speed.toFixed(2)));
+    writer.stdin.end();
+    writer.kill();
+    await G(`import('/kit/settings.js').then((s) => s.updateSettings({ wheel: null }))`);
 
     // ---- magic paint ----
     await tap(1);

@@ -12,15 +12,25 @@ Environment variables:
   GRASSNYER_ROOT          repo folder to serve (default: the folder above kit/)
   GRASSNYER_DATA          where settings live (default ~/.local/share/grassnyer)
   GRASSNYER_ALLOW_SYSTEM  set to 1 to enable update/goback/quit (the Pi service sets it)
+  GRASSNYER_INPUT_DIR     where to look for joysticks (default /dev/input; tests use fakes)
+
+GET /api/joystick streams the wheel's buttons, read straight from
+/dev/input/js*, as server-sent events. Chromium's built-in layout for some
+wheels loses buttons (the gear lever of the "SHANWAN PS3 GamePad" wheel), so
+kit/input.js can map controls to these raw Linux joystick button numbers.
 """
 
+import fcntl
 import json
 import mimetypes
 import os
+import select
 import shutil
+import struct
 import subprocess
 import sys
 import threading
+import time
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -144,6 +154,119 @@ def restart_soon():
     threading.Timer(1.0, lambda: os._exit(0)).start()
 
 
+JS_EVENT = struct.Struct("IhBB")  # time, value, type, number (linux/joystick.h)
+JS_EVENT_BUTTON = 0x01
+INPUT_DIR = Path(os.environ.get("GRASSNYER_INPUT_DIR", "/dev/input"))
+
+
+def joystick_name(fd):
+    try:
+        buf = bytearray(128)
+        fcntl.ioctl(fd, 0x80006A13 | (len(buf) << 16), buf)  # JSIOCGNAME
+        return buf.split(b"\0", 1)[0].decode(errors="replace")
+    except OSError:
+        return ""
+
+
+class Joystick:
+    """Watches /dev/input/js* for button presses, from the first time a page asks.
+
+    "presses" counts every press, so a tap that is released again before a
+    page reads the next update is never lost.
+    """
+
+    def __init__(self):
+        self.cond = threading.Condition()
+        self.pressed = {}  # device -> set of button numbers held down
+        self.names = {}    # device -> name reported by the driver
+        self.presses = {}  # button number -> times pressed
+        self.seq = 0
+        self.started = False
+
+    def start(self):
+        with self.cond:
+            if self.started:
+                return
+            self.started = True
+        threading.Thread(target=self.run, daemon=True).start()
+
+    def snapshot(self):
+        held = set().union(*self.pressed.values())
+        return {
+            "seq": self.seq,
+            "name": next(iter(self.names.values()), ""),
+            "buttons": sorted(held),
+            "presses": {str(n): c for n, c in self.presses.items()},
+        }
+
+    def wait(self, seq, timeout):
+        with self.cond:
+            self.cond.wait_for(lambda: self.seq != seq, timeout)
+            return self.snapshot()
+
+    def _changed(self):  # call with self.cond held
+        self.seq += 1
+        self.cond.notify_all()
+
+    def run(self):
+        fds = {}
+        last_scan = 0
+        while True:
+            if time.monotonic() - last_scan > 2:  # pick up the wheel if it is plugged in late
+                last_scan = time.monotonic()
+                for dev in sorted(INPUT_DIR.glob("js*")):
+                    if str(dev) in fds:
+                        continue
+                    try:
+                        fd = os.open(dev, os.O_RDONLY | os.O_NONBLOCK)
+                    except OSError:
+                        continue
+                    fds[str(dev)] = fd
+                    with self.cond:
+                        self.pressed[str(dev)] = set()
+                        self.names[str(dev)] = joystick_name(fd)
+                        self._changed()
+            if fds:
+                ready = select.select(list(fds.values()), [], [], 0.5)[0]
+            else:
+                time.sleep(0.5)
+                ready = []
+            for dev, fd in list(fds.items()):
+                if fd not in ready:
+                    continue
+                try:
+                    data = os.read(fd, JS_EVENT.size * 64)
+                except BlockingIOError:
+                    continue
+                except OSError:  # unplugged
+                    data = b""
+                with self.cond:
+                    if not data:
+                        os.close(fd)
+                        del fds[dev]
+                        self.pressed.pop(dev, None)
+                        self.names.pop(dev, None)
+                        self._changed()
+                        continue
+                    held = self.pressed[dev]
+                    changed = False
+                    for off in range(0, len(data) - JS_EVENT.size + 1, JS_EVENT.size):
+                        _, value, etype, number = JS_EVENT.unpack_from(data, off)
+                        if not etype & JS_EVENT_BUTTON or bool(value) == (number in held):
+                            continue
+                        changed = True
+                        if value:
+                            held.add(number)
+                            self.presses[number] = self.presses.get(number, 0) + 1
+                        else:
+                            held.discard(number)
+                    if changed:
+                        self._changed()
+
+
+joystick = Joystick()
+
+
 class Handler(SimpleHTTPRequestHandler):
     server_version = "Grassnyer/1"
 
@@ -166,6 +289,24 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def stream_joystick(self):
+        joystick.start()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/event-stream")
+        self.end_headers()
+        seq = None
+        try:
+            while True:
+                snap = joystick.wait(seq, timeout=15)
+                if snap["seq"] == seq:
+                    self.wfile.write(b": still here\n\n")  # keeps the connection alive
+                else:
+                    seq = snap["seq"]
+                    self.wfile.write(f"data: {json.dumps(snap)}\n\n".encode())
+                self.wfile.flush()
+        except OSError:  # the page went away
+            pass
 
     def read_json(self):
         length = int(self.headers.get("Content-Length") or 0)
@@ -232,6 +373,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(data)
         if path == "/api/games":
             return self.send_json(list_games())
+        if path == "/api/joystick":
+            return self.stream_joystick()
         if path == "/api/voice":
             return self.send_json(list_voice_clips())
         if path == "/api/native":

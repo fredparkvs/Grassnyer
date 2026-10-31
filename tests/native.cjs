@@ -56,11 +56,13 @@ async function main() {
   execSync(`mkfifo ${path.join(input, 'js0')}`);
 
   const port = await freePort();
-  const server = spawn('python3', [path.join(root, 'kit/server.py')], {
-    env: { ...process.env, GRASSNYER_PORT: String(port), GRASSNYER_DATA: data, GRASSNYER_ROOT: root,
-      GRASSNYER_ALLOW_SYSTEM: '1', GRASSNYER_INPUT_DIR: input },
-    stdio: 'ignore',
-  });
+  // Keep real games and the real screen out of reach: a throwaway HOME hides
+  // native games installed on this machine (SuperTuxKart on the Pi), and with
+  // no display variables nothing started here can open on the TV.
+  const env = { ...process.env, GRASSNYER_PORT: String(port), GRASSNYER_DATA: data, GRASSNYER_ROOT: root,
+    GRASSNYER_ALLOW_SYSTEM: '1', GRASSNYER_INPUT_DIR: input, HOME: tmp, XDG_RUNTIME_DIR: tmp };
+  for (const k of ['DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS']) delete env[k];
+  const server = spawn('python3', [path.join(root, 'kit/server.py')], { env, stdio: 'ignore' });
   await new Promise((r) => setTimeout(r, 800));
 
   const launch = { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] };

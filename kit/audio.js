@@ -171,6 +171,18 @@ export class Sound {
     this._tone(midiHz(88), t, 0.5, { type: 'triangle', vol: 0.12 });
   }
 
+  // gear lever moved: a chunky thunk with a click on top
+  sfx_clunk(t) {
+    this._tone(140, t, 0.16, { vol: 0.35, slideTo: 70 });
+    this._noise(t, 0.06, { vol: 0.2, filter: 'lowpass', freq: 1500 });
+    this._tone(900, t + 0.02, 0.04, { type: 'square', vol: 0.05 });
+  }
+
+  // reversing beeper (played every 0.7 s while going backwards)
+  sfx_beep(t) {
+    this._tone(1050, t, 0.22, { type: 'square', vol: 0.05 });
+  }
+
   // ---- engine and grass cutting loop ----------------------------------
   startEngine() {
     if (!this.ctx || this.engine) return;

@@ -72,6 +72,8 @@ let state = 'boot';
 let world = null, vehicle = null, pile = null;
 let presents = [], giftsFound = 0, currentLawn = 0;
 let going = true, idleStopped = false, cuttingLevel = 0;
+let gear = 1, beepIn = 0;          // gear lever: 1 forward, -1 reverse
+const REVERSE_SPEED = 0.5;         // reversing is slower than driving forward
 let lastCutTime = 0, hintsOn = false, hintsSince = 0, hintRefresh = 0;
 let camMode = 'follow', camHeading = 0, timerDue = false;
 let simT = 0, last = performance.now();
@@ -158,6 +160,7 @@ async function startLawn(index) {
   hintsOn = false;
   lastCutTime = simT;
   going = true;
+  gear = 1;
   idleStopped = false;
   clippings.clear(); confetti.clear(); paintFx.clear();
   camMode = 'follow';
@@ -195,15 +198,30 @@ function spawnPresents() {
 function updatePlay(dt) {
   const s = settings();
   let target = 0;
+  // Gear lever: forward drives forwards, back reverses. In auto-drive, moving
+  // the lever also means "go", even if the vehicle was stopped.
+  const shift = (g) => {
+    if (gear !== g) { gear = g; sound.play('clunk'); }
+    going = true;
+  };
+  if (wheel.gearForward.pressed) shift(1);
+  if (wheel.gearReverse.pressed) shift(-1);
+  const dir = gear > 0 ? 1 : -REVERSE_SPEED;
   if (s.driveMode === 'auto') {
     if (wheel.go.pressed) { going = !going; sound.play('ding'); }
     idleStopped = wheel.idleSeconds() > T.idleStop;
-    target = going && !idleStopped ? 1 : 0;
+    target = going && !idleStopped ? dir : 0;
   } else {
     idleStopped = false;
-    if (wheel.gas > 0) target = wheel.gas;
-    else if (wheel.brake > 0) target = vehicle.speed > 0.2 ? 0 : -wheel.brake * 0.4;
+    if (wheel.gas > 0) target = wheel.gas * dir;
+    // brake stops; in forward gear holding it creeps into a slow reverse (as agreed)
+    else if (wheel.brake > 0) target = gear < 0 || vehicle.speed > 0.2 ? 0 : -wheel.brake * 0.4;
   }
+  // reversing beeper, like a real tractor
+  if (vehicle.speed < -0.3) {
+    beepIn -= dt;
+    if (beepIn <= 0) { sound.play('beep'); beepIn = 0.7; }
+  } else beepIn = 0;
   hud.setLight(s.driveMode === 'auto', going && !idleStopped);
   hud.setWheelHint(idleStopped);
 
@@ -545,6 +563,7 @@ window.__grassnyer = {
       type: vehicle.type, colour: vehicle.colour, decorations: vehicle.decorationIds() };
   },
   get idleStopped() { return idleStopped; },
+  get gear() { return gear; },
   get hints() { return hintsOn; },
   get tufts() { return world ? world.grass.tuftCount : 0; },
   mowTo(fraction) {

@@ -23,11 +23,12 @@ The repo is also the home for future kids' games on the same Pi.
 
 - **Auto-drive (default):** the vehicle rolls forward at a gentle speed and the child only steers. A button on the wheel stops and starts it.
 - **Pedals mode (parent setting):** gas to go. Brake to stop, and holding it brakes into a slow reverse.
+- **Gear lever** (added 2026-10-31 at the parent's request, after he got stuck in a corner): push it forward to drive forwards, pull it back to reverse. Reversing is half speed, with a reversing beep. In auto-drive, moving the lever also starts the vehicle if it was stopped. In pedals mode, the gas pedal drives in the chosen direction. Each new lawn starts in forward.
 - **Steering feel:** softened, with a response curve, a dead zone and a wide minimum turning circle, so holding full lock doesn't spin the vehicle on the spot.
 - **Speed:** a bit faster than a real ride-on, still gentle. Max speed can be adjusted in the parent settings.
 - **Magic paint button:** cycles through the 8 colours during play, with a splash sound.
 - **Vibration:** only when hitting something (obstacles, hedges, fences). It's gentle, and can be switched off in the parent settings.
-- **Wheel setup screen (parent settings):** turn fully left, then fully right, press gas, press brake, press the paint button, press the stop button. The result is saved, so switching the wheel's mode or replacing the wheel never needs code changes.
+- **Wheel setup screen (parent settings):** turn fully left, then fully right, press gas, press brake, push the gear lever forward, pull it back, press the paint button, press the stop button. The result is saved, so switching the wheel's mode or replacing the wheel never needs code changes.
 - If steering and vibration work best in different wheel modes, reliable steering wins.
 
 ## 4. Game flow
