@@ -1,0 +1,23 @@
+{
+  "name": "SuperTuxKart",
+  "icon": "icon.svg",
+  "order": 2,
+  "native": {
+    "requires": "~/.local/opt/SuperTuxKart-1.5-linux-arm64/run_game.sh",
+    "command": [
+      "~/.local/opt/SuperTuxKart-1.5-linux-arm64/run_game.sh",
+      "--no-start-screen", "--use-gamepad=0",
+      "--kart={kart}", "--track={track}",
+      "--difficulty=0", "--numkarts=4", "--laps=2", "--mode=0",
+      "-f", "-s", "1280x720",
+      "--disable-dynamic-lights", "--shadows=0", "--anisotropic=0",
+      "--debug=gui", "--log=nocolor"
+    ],
+    "choices": {
+      "kart": ["tux", "adiumy", "beastie", "emule", "gavroche", "hexley", "kiki", "konqi", "pidgin", "puffy", "wilber", "xue"],
+      "track": ["zengarden", "lighthouse", "olivermath", "snowtuxpeak"]
+    },
+    "exitOnLog": "Switching to screen race_result\\.stkgui",
+    "exitDelay": 6
+  }
+}

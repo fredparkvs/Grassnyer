@@ -33,7 +33,7 @@ The repo is also the home for future kids' games on the same Pi.
 ## 4. Game flow
 
 1. The Pi boots straight into the game, full screen. No keyboard or mouse is needed.
-2. A game picker exists, but it skips itself while there's only one game.
+2. **Game picker:** big picture tiles, turn the wheel to choose, press to play. It skips itself while there's only one game. With SuperTuxKart installed (section 13) it shows at start-up.
 3. **Garage:**
    - Turn the wheel to choose the mower or the tractor, then press.
    - Turn the wheel through 8 colours (red, orange, yellow, green, blue, purple, pink, black), then press.
@@ -46,7 +46,7 @@ The repo is also the home for future kids' games on the same Pi.
 - If the wheel isn't touched for about 20 seconds, the vehicle gently stops and waits. Touching the wheel carries on.
 - After 10 minutes untouched, the vehicle drives itself into the shed and the screen shows it sleeping, dimmed. Rendering stops, so the Pi idles cool.
 - The next touch starts a **new play session**:
-  - It goes back to the garage with a **plain vehicle** (decorations reset).
+  - It goes to the **game picker** (agreed when SuperTuxKart was added; with only one game the picker skips straight to Grassnyer's garage), with a **plain vehicle** (decorations reset).
   - It moves on to the next lawn in the sequence with fresh grass. A half-mowed lawn doesn't resume.
   - The vehicle and colour choices are remembered.
 - Decorations also reset whenever the Pi restarts, after Update or Go back, and when waking from the play timer.
@@ -170,3 +170,21 @@ New games go in `games/<name>/` and get the wheel handling, parent menu and pick
    - Runs `pi/setup.sh`: creates the live copy, sets up kiosk autostart, the Remote Control service, SSH and the deploy key.
    - Tests the wheel in both modes and saves the best mapping.
    - Tunes the steering and rumble with the real wheel.
+
+## 13. Second game: SuperTuxKart
+
+Agreed on 2026-10-31.
+
+- **Install:** SuperTuxKart 1.5, the official self-contained ARM64 download, goes into `~/.local/opt` (`pi/install-supertuxkart.sh`, run by `pi/setup.sh`). Raspberry Pi OS ships 1.4, which can't be told to use the wheel when it starts straight into a race.
+- **In the picker:** it only appears once it's installed.
+- **Starting:** picking it launches it straight into a race, skipping SuperTuxKart's text menus:
+  - easiest difficulty (Novice)
+  - the child plus 3 AI karts
+  - 2 laps on a short track
+  - kart and track picked at random from a friendly list in `games/supertuxkart/game.json`
+- **Controls:** the wheel steers. The **gas pedal** accelerates and the brake pedal brakes (agreed: no auto-accelerate helper). The pedals are bound in SuperTuxKart's own controls on the Pi.
+- **Ending:** when the race ends, the results show for a few seconds and then SuperTuxKart closes, back to the picker.
+- **Getting out:** holding the two parent buttons for 5 seconds closes SuperTuxKart at any time, back to the picker.
+- **Back to the games:** Grassnyer's parent settings have a "Back to the games" item.
+- **Play timer:** it only counts time in Grassnyer. SuperTuxKart races are short and always end back at the picker.
+- **Speed:** unknown until it runs on the Pi. It starts at 1280x720 with the simple renderer, no shadows and no dynamic lights. Claude on the Pi measures the speed and tunes these.

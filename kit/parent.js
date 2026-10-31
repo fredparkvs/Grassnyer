@@ -17,7 +17,9 @@ function el(tag, cls, html) {
 }
 
 export class ParentMenu {
-  constructor({ wheel, sound, onOpen, onClose, onSettingsChanged }) {
+  constructor({ wheel, sound, onOpen, onClose, onSettingsChanged, onPicker = false }) {
+    this.onPicker = onPicker;
+    this.gameCount = 1;
     this.wheel = wheel;
     this.sound = sound;
     this.onOpen = onOpen;
@@ -72,6 +74,9 @@ export class ParentMenu {
       { label: 'Update', value: 'Install the latest version from GitHub', action: () => this.system('update', 'Checking for updates...') },
       { label: 'Go back', value: canGoBack ? 'Return to the previous version' : 'Nothing to go back to',
         disabled: !canGoBack, action: () => this.system('goback', 'Going back...') },
+      ...(!this.onPicker && this.gameCount > 1
+        ? [{ label: 'Back to the games', value: 'Go to the game picker', action: () => saveNow().finally(() => location.assign('/')) }]
+        : []),
       { label: 'Quit to desktop', value: '', action: () => this.system('quit', 'Quitting...') },
       { label: 'Back to the game', value: '', action: () => this.close() },
     ];
@@ -88,6 +93,7 @@ export class ParentMenu {
     this._loop();
     try {
       this.version = await (await fetch('/api/version', { cache: 'no-store' })).json();
+      this.gameCount = (await (await fetch('/api/games', { cache: 'no-store' })).json()).length;
     } catch (e) { this.version = null; }
     this.render();
   }

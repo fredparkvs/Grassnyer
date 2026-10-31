@@ -2,7 +2,8 @@
 """Tiny local server for the Grassnyer games.
 
 Serves the game files, stores settings as JSON on disk, and (on the Pi only)
-runs the Update / Go back / Quit scripts for the parent settings screen.
+runs the Update / Go back / Quit scripts for the parent settings screen and
+starts native games such as SuperTuxKart (see kit/native.py).
 
 Standard library only, so it runs on a fresh Raspberry Pi OS with no installs.
 
@@ -16,6 +17,7 @@ Environment variables:
 import json
 import mimetypes
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -44,6 +46,7 @@ mimetypes.add_type("audio/ogg", ".opus")
 mimetypes.add_type("audio/mp4", ".m4a")
 
 settings_lock = threading.Lock()
+native = {"proc": None, "id": None}
 
 
 def git_commit():
@@ -74,10 +77,14 @@ def list_games():
         if info.get("hidden"):
             continue
         gid = manifest.parent.name
+        nat = info.get("native")
+        if nat and not shutil.which(os.path.expanduser(nat.get("requires") or nat["command"][0])):
+            continue  # not installed on this machine, so don't offer it
         games.append({
             "id": gid,
             "name": info.get("name", gid),
-            "url": f"/games/{gid}/",
+            "type": "native" if nat else "web",
+            "url": None if nat else f"/games/{gid}/",
             "icon": f"/games/{gid}/{info['icon']}" if info.get("icon") else None,
             "order": info.get("order", 100),
         })
@@ -111,6 +118,25 @@ def run_pi_script(name):
     changed = any(l.strip() == "CHANGED" for l in lines)
     message = "\n".join(l for l in lines if l.strip() != "CHANGED")[-600:]
     return {"ok": out.returncode == 0, "message": message, "restarting": changed}, changed
+
+
+def native_running():
+    return native["proc"] is not None and native["proc"].poll() is None
+
+
+def launch_native(gid):
+    if native_running():
+        return {"ok": False, "message": "A game is already running."}
+    if not any(g["id"] == gid and g["type"] == "native" for g in list_games()):
+        return {"ok": False, "message": f"No installed native game called {gid}."}
+    native["proc"] = subprocess.Popen(
+        [sys.executable, str(ROOT / "kit" / "native.py"), gid],
+        env={**os.environ, "GRASSNYER_DATA": str(DATA), "GRASSNYER_ROOT": str(ROOT)},
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    native["id"] = gid
+    return {"ok": True}
 
 
 def restart_soon():
@@ -174,6 +200,15 @@ class Handler(SimpleHTTPRequestHandler):
                 tmp.write_text(json.dumps(data, indent=2))
                 tmp.replace(SETTINGS_FILE)
             return self.send_json({"ok": True})
+        if path == "/api/launch":
+            if not ALLOW_SYSTEM:
+                return self.send_json({"ok": False, "message": "Only available on the Pi."}, HTTPStatus.NOT_IMPLEMENTED)
+            try:
+                gid = str(self.read_json().get("id", ""))
+            except (ValueError, json.JSONDecodeError):
+                return self.send_json({"ok": False}, HTTPStatus.BAD_REQUEST)
+            result = launch_native(gid)
+            return self.send_json(result, HTTPStatus.OK if result["ok"] else HTTPStatus.CONFLICT)
         if path in ("/api/update", "/api/goback", "/api/quit"):
             if not ALLOW_SYSTEM:
                 return self.send_json(
@@ -199,6 +234,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_json(list_games())
         if path == "/api/voice":
             return self.send_json(list_voice_clips())
+        if path == "/api/native":
+            return self.send_json({"running": native_running(), "id": native["id"] if native_running() else None})
         if path == "/api/version":
             return self.send_json({
                 "commit": git_commit(),

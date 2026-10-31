@@ -62,7 +62,15 @@ async function main() {
   const until = (fn, timeout = 30000) => page.waitForFunction(fn, null, { timeout, polling: 100 });
   const shot = (name) => page.screenshot({ path: path.join(OUT, `${name}.png`) });
   const tap = async (i) => { await G(`__press(${i}, true)`); await sleep(200); await G(`__press(${i}, false)`); await sleep(250); };
-  const nudge = async (v) => { await G(`__setSteer(${v})`); await sleep(350); await G('__setSteer(0)'); await sleep(350); };
+  const nudge = async (v) => { await G(`__setSteer(${v})`); await sleep(350); await G('__setSteer(0)').catch(() => {}); await sleep(350); };
+  // waking reloads the page (via the picker), so poll across the navigation
+  const waitForGarage = async (ms) => {
+    for (const end = Date.now() + ms; Date.now() < end; await sleep(200)) {
+      const st = await G('window.__grassnyer && window.__grassnyer.state').catch(() => null);
+      if (st === 'garage') return true;
+    }
+    return false;
+  };
 
   try {
     await page.goto(`http://127.0.0.1:${port}/?idleStop=3&idleSleep=14&hintAfter=2`);
@@ -116,8 +124,8 @@ async function main() {
     // ---- bumping ----
     await tap(5);
     await G('__grassnyer.place(0, -3.5, Math.PI)');
-    await sleep(1500);
-    console.log('   bump debug', JSON.stringify(await G('__grassnyer.vehicle')), await G('__grassnyer.idleStopped'));
+    // the simulation can run slower than real time in a headless browser
+    await until(() => (window.__rumbles || 0) > 0, 6000).catch(() => {});
     check('hitting the fence rumbles the wheel', (await G('window.__rumbles || 0')) > 0, String(await G('window.__rumbles || 0')));
 
     // ---- idle stop ----
@@ -170,9 +178,9 @@ async function main() {
     check('falls asleep', (await G('__grassnyer.state')) === 'sleep');
     await shot('13-sleep');
     await nudge(0.6);
-    await until(() => window.__grassnyer.state === 'garage', 5000).catch(() => {});
+    const woke = await waitForGarage(10000);
     gar = await G('__grassnyer.garage');
-    check('a touch wakes it into the garage', (await G('__grassnyer.state')) === 'garage');
+    check('a touch wakes it (via the picker) into the garage', woke);
     check('new session: plain vehicle', Object.keys(gar.decorations || {}).length === 0, JSON.stringify(gar.decorations));
     check('new session: vehicle and colour remembered', gar.type === 'tractor' && gar.colour === 2, JSON.stringify(gar));
     await tap(0); await tap(0);
@@ -204,9 +212,7 @@ async function main() {
     await sleep(500);
     check('after the timer, a wheel touch does not wake it', (await G('__grassnyer.state')) === 'sleep');
     await G('__press(6, true); __press(7, true)');
-    await until(() => window.__grassnyer.state === 'garage', 9000).catch(() => {});
-    await G('__press(6, false); __press(7, false)');
-    check('holding the parent buttons wakes it', (await G('__grassnyer.state')) === 'garage');
+    check('holding the parent buttons wakes it', await waitForGarage(12000));
 
     // ---- wheel setup wizard ----
     await page.keyboard.press('Control+Shift+P');
