@@ -980,11 +980,23 @@ export const POOL = [
 
 export const BY_ID = Object.fromEntries(POOL.map((d) => [d.id, d]));
 
-// Picks a new find: something not yet found this session, or once everything
-// has been found, a different item for a random spot (shuffles the look).
-export function pickDecoration(found, current) {
-  const fresh = POOL.filter((d) => !found.has(d.id));
-  if (fresh.length) return fresh[Math.floor(Math.random() * fresh.length)];
-  const options = POOL.filter((d) => current[d.slot] !== d.id);
-  return options[Math.floor(Math.random() * options.length)];
+// Picks a new find. Presents take turns between the kinds of thing (a hat, a
+// sticker, a pet, a roof toy, wheels, lights, a trail...): every kind comes
+// round once, in a shuffled order, before any kind comes again, and never the
+// same kind twice in a row (asked for by the parent, 2026-11-01). Within a
+// kind: something not found yet this session, else something different from
+// what's on the vehicle now. cycle is per session: { queue: [], last: null }.
+export function pickDecoration(found, current, cycle = { queue: [], last: null }) {
+  if (!cycle.queue.length) {
+    const slots = [...SLOTS];
+    for (let i = slots.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [slots[i], slots[j]] = [slots[j], slots[i]]; }
+    if (slots[0] === cycle.last) slots.push(slots.shift());
+    cycle.queue = slots;
+  }
+  const slot = cycle.queue.shift();
+  cycle.last = slot;
+  const kind = POOL.filter((d) => d.slot === slot);
+  const fresh = kind.filter((d) => !found.has(d.id));
+  const options = fresh.length ? fresh : kind.filter((d) => current[d.slot] !== d.id);
+  return options[Math.floor(Math.random() * options.length)] || kind[0];
 }

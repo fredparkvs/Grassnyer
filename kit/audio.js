@@ -178,6 +178,17 @@ export class Sound {
     this._tone(900, t + 0.02, 0.04, { type: 'square', vol: 0.05 });
   }
 
+  // a carrot pulled up: a springy upward boop and a pop
+  sfx_pluck(t) {
+    this._tone(380, t, 0.18, { type: 'triangle', vol: 0.25, slideTo: 1100 });
+    this._noise(t + 0.12, 0.08, { vol: 0.25, freq: 1800, q: 2 });
+  }
+
+  // the bunny finished a carrot: crunch crunch
+  sfx_munch(t) {
+    for (const d of [0, 0.15, 0.3]) this._noise(t + d, 0.07, { vol: 0.2, filter: 'bandpass', freq: 2400, q: 1.5 });
+  }
+
   // a bonus present floating down: slide whistle
   sfx_whistle(t) {
     this._tone(1500, t, 0.9, { type: 'sine', vol: 0.13, slideTo: 520, attack: 0.03 });

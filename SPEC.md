@@ -111,7 +111,7 @@ Bumping into anything gives a soft "boing" and a gentle bounce back (plus vibrat
 - **Celebration** (automatic, at about 80% mowed):
   1. The leftover tufts get zoom-cut.
   2. The vehicle drives itself to the compost corner.
-  3. The catcher or trailer tips up and pours out a ridiculously huge pile.
+  3. The catcher or trailer tips up and pours out a ridiculously huge pile, made of that lawn's own cut grass: its colours, loose clippings sticking out, and flower heads if the lawn had flowers (2026-11-01). The clippings flying while mowing, and the grass in the catcher, match the lawn too.
   4. Confetti, a fanfare and "Well done!".
   5. The next lawn starts.
 
@@ -130,8 +130,15 @@ Bumping into anything gives a soft "boing" and a gentle bounce back (plus vibrat
   - **Magic trails** behind the moving vehicle: bubbles, sparkles, flower petals, a rainbow, confetti.
 - Each item has a spot on the vehicle (side, bonnet, roof, lights, wheels, driver's hat, pet, trail). A new find replaces whatever is in that spot.
 - Decorations are shared between the mower and the tractor.
-- The vehicle starts plain at the start of every play session (see [Q37]), and decorations build up across lawns within a session.
-- Once the whole pool has been found in a session, presents shuffle the look instead.
+- The vehicle starts plain on every lawn (changed 2026-11-01 at the parent's request; decorations used to build up across lawns within a session).
+- **Presents take turns between the kinds of thing** (added 2026-11-01): every spot comes round once, in a shuffled order (side sticker, bonnet sticker, roof, lights, wheels, hat, pet, trail), before any comes again, and never the same spot twice in a row. So there's no new hat straight after a hat. Within a spot, it's something not found yet this session.
+- Once everything for a spot has been found in a session, presents for that spot pick something different from what's on now.
+
+## 8b. Garden life (added 2026-11-01 at the parent's request)
+
+- **Carrots:** every 9 to 15 seconds, once some grass is cut, a carrot top (leaves and an orange shoulder, wiggling) sprouts somewhere on the mowed part. There are at most 4 at once. Driving over one pulls the whole carrot up with a "pluck", and it joins a carrot row under the gift row (up to 15 shown). The row starts empty on each lawn.
+- **The bunny:** when a carrot has been up for 5 seconds, a bunny pops in a few steps away, on the side away from the vehicle, and hops over to nibble it. It takes about 14 seconds to finish one; if it does, the carrot is gone with a "munch". When the vehicle comes within 5 units, the bunny dashes off fast and vanishes in a puff. There's one bunny at a time, with at least 12 seconds between visits.
+- **Molehills:** every 18 to 28 seconds a molehill pushes up in the mowed grass, with a puff of dirt. There are at most 3, and now and then a mole peeks out of the top. Driving over one flattens it. The chow likes them: when he's idle he often trots over and digs, front paws scrabbling and dirt flying, until the vehicle comes near.
 
 ## 9. Parent controls
 

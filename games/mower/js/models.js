@@ -525,14 +525,104 @@ export function compostBin() {
 }
 
 // A lumpy green mountain of clippings, built at full size and scaled up.
-export function grassPile() {
+// The giant pile at the end, made of the lawn's own cut grass: lumps in its
+// shades, bristling with loose clippings (and a few flower heads if it had any).
+export function grassPile(shades = [0x5cb83a, 0x6cc84a, 0x4fa832, 0x7dd35a], flowers = []) {
   const g = new THREE.Group();
-  const shades = [0x5cb83a, 0x6cc84a, 0x4fa832, 0x7dd35a];
   const lumps = [[0, 1.0, 0, 2.2], [1.4, 0.7, 0.6, 1.5], [-1.3, 0.7, 0.4, 1.6], [0.4, 0.8, -1.3, 1.5],
     [-0.5, 0.7, 1.3, 1.4], [0.2, 2.1, 0.1, 1.5], [0.6, 2.9, -0.2, 1.0], [-0.4, 2.6, 0.4, 1.1], [0.1, 3.5, 0, 0.7]];
   lumps.forEach(([x, y, z, r], i) => g.add(at(blob(r, mat(shades[i % shades.length], { flatShading: true }), 1), x, y, z)));
+  let seed = 11;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  for (let i = 0; i < 70; i++) {   // loose clippings sticking out all over
+    const [lx, ly, lz, lr] = lumps[i % lumps.length];
+    const a = rnd() * Math.PI * 2, b = rnd() * Math.PI * 0.45;
+    const nx = Math.cos(a) * Math.cos(b), ny = Math.sin(b), nz = Math.sin(a) * Math.cos(b);
+    const colour = flowers.length && i % 9 === 0 ? flowers[i % flowers.length] : shades[(i * 7) % shades.length];
+    const bit = at(box(0.07, 0.5, 0.025, mat(colour)), lx + nx * lr * 0.95, ly + ny * lr * 0.95, lz + nz * lr * 0.95);
+    bit.rotation.set(rnd() * 2 - 1, rnd() * 6, rnd() * 2 - 1);
+    g.add(bit);
+  }
   g.add(blobShadow(6, 6, 0.3));
   return g;
+}
+
+// ---- garden life: carrots, the bunny, molehills ---------------------------------
+// A carrot top poking out of the mowed lawn.
+export function carrotSprout() {
+  const g = new THREE.Group();
+  g.add(at(cyl(0.08, 0.1, 0.07, mat(0xff8a1f), 10), 0, 0.03, 0));      // orange shoulder showing
+  const leaf = mat(0x2e9e3a);
+  for (let i = 0; i < 5; i++) {
+    const l = at(new THREE.Mesh(cached('leaf', () => new THREE.ConeGeometry(0.05, 0.42, 4)), leaf), 0, 0.24, 0);
+    l.rotation.set(Math.cos((i / 5) * Math.PI * 2) * 0.45, 0, Math.sin((i / 5) * Math.PI * 2) * 0.45);
+    l.position.x = Math.sin((i / 5) * Math.PI * 2) * 0.08;
+    l.position.z = Math.cos((i / 5) * Math.PI * 2) * 0.08;
+    g.add(l);
+  }
+  return g;
+}
+
+// A whole carrot, for when it's pulled up.
+export function carrot() {
+  const g = new THREE.Group();
+  const root = at(new THREE.Mesh(cached('carrotRoot', () => new THREE.ConeGeometry(0.11, 0.5, 10)), mat(0xff8a1f)), 0, -0.25, 0);
+  root.rotation.x = Math.PI;   // point down
+  g.add(root);
+  const top = carrotSprout();
+  top.children[0].visible = false;
+  g.add(top);
+  return g;
+}
+
+// A wild garden bunny (bigger than the riding pet one).
+export function gardenBunny() {
+  const g = new THREE.Group();
+  const fur = mat(0xb9926a), light = mat(0xf2e6d6);
+  const body = new THREE.Group();
+  g.add(body);
+  const torso = at(ball(0.2, fur, 12), 0, 0.2, 0);
+  torso.scale.set(0.9, 0.85, 1.15);
+  body.add(torso, at(ball(0.07, light, 8), 0, 0.24, -0.24));             // white tail
+  const head = new THREE.Group();
+  head.position.set(0, 0.42, 0.17);
+  head.add(ball(0.13, fur, 12), at(ball(0.03, mat(0xff8ab3), 6), 0, -0.01, 0.13));
+  for (const s of [-1, 1]) {
+    head.add(at(ball(0.025, mat(0x1e1e22), 6), s * 0.07, 0.03, 0.1));
+    const ear = new THREE.Group();
+    ear.position.set(s * 0.05, 0.1, -0.02);
+    ear.rotation.z = -s * 0.15;
+    const e = at(ball(0.045, fur, 8), 0, 0.14, 0);
+    e.scale.set(0.8, 3.2, 0.5);
+    const inner = at(ball(0.03, mat(0xffb3d1), 6), 0, 0.14, 0.015);
+    inner.scale.set(0.6, 3, 0.3);
+    ear.add(e, inner);
+    head.add(ear);
+  }
+  body.add(head);
+  for (const s of [-1, 1]) {
+    body.add(at(ball(0.07, fur, 8), s * 0.12, 0.06, -0.08));            // back feet
+    body.add(at(ball(0.04, light, 6), s * 0.07, 0.04, 0.14));           // front paws
+  }
+  g.add(blobShadow(0.6, 0.8, 0.3));
+  return { root: g, body, head };
+}
+
+// A molehill, with a mole that sometimes peeks out of the top.
+export function moleHill() {
+  const g = new THREE.Group();
+  const soil = mat(0x6b4a2e, { flatShading: true });
+  const mound = blob(0.45, soil, 1);
+  mound.scale.set(1, 0.42, 1);
+  g.add(mound);
+  for (const [x, z, r] of [[0.45, 0.1, 0.09], [-0.3, 0.38, 0.07], [0.1, -0.48, 0.08], [-0.44, -0.2, 0.06]]) g.add(at(blob(r, soil, 0), x, 0.03, z));
+  const mole = new THREE.Group();
+  mole.position.y = 0.05;
+  mole.add(at(ball(0.11, mat(0x4a4a52), 10), 0, 0, 0), at(ball(0.035, mat(0xff8ab3), 6), 0, 0, 0.11));
+  for (const s of [-1, 1]) mole.add(at(ball(0.035, mat(0xffb3c8), 6), s * 0.1, -0.03, 0.08));
+  mole.visible = false;
+  g.add(mole);
+  return { root: g, mound, mole };
 }
 
 export function arrow() {

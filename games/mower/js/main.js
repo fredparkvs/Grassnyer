@@ -19,6 +19,7 @@ import { pickDecoration } from './decorations.js';
 import * as DECOR from './decorations.js';
 import * as M from './models.js';
 import { Dog } from './dog.js';
+import { Garden } from './garden.js';
 
 const params = new URLSearchParams(location.search);
 const num = (k, d) => (params.has(k) ? Number(params.get(k)) : d);
@@ -81,6 +82,31 @@ scene.add(flyer);
 const dog = new Dog();   // the family's chow chow
 scene.add(dog.root);
 dog.onBark = () => sound.play('woof');
+let clipColours = CLIPPING_COLOURS;   // this lawn's cut grass (see clippingShades)
+const dirtFx = new Particles(220, { size: 0.12, gravity: -9, drag: 0.6 });
+scene.add(dirtFx.points);
+const DIRT = [0x6b4a2e, 0x7d5836, 0x5a3d24, 0x8a6a48];
+const dirt = (x, z, n, up = 1) => dirtFx.burst(x, 0.25, z, n, 1.8, DIRT, 0.9, up);
+dog.onDig = (x, z, heading) => {   // dirt flies out behind his front paws
+  for (let i = 0; i < 3; i++) {
+    dirtFx.emit(x, 0.2, z, -Math.sin(heading) * (2 + Math.random() * 2) + (Math.random() - 0.5), 2 + Math.random() * 2,
+      -Math.cos(heading) * (2 + Math.random() * 2) + (Math.random() - 0.5), 0.8, DIRT[(Math.random() * DIRT.length) | 0]);
+  }
+};
+const garden = new Garden(scene, {
+  pull: (x, z) => { sound.play('pluck'); hud.addCarrot(); paintFx.burst(x, 0.6, z, 16, 2, [0xff8a1f, 0x2e9e3a, 0xffffff], 0.8); },
+  eaten: (x, z) => { sound.play('munch'); dirt(x, z, 6, 0.5); },
+  sprout: (x, z) => dirt(x, z, 8, 0.6),
+  dirt: (x, z, n) => { sound.play('pop'); dirt(x, z, n); },
+  flatten: (x, z) => { sound.play('land'); dirt(x, z, 14); },
+  poof: (x, z) => { sound.play('whoosh'); paintFx.burst(x, 0.4, z, 18, 2, [0xffffff, 0xe8e0d0], 0.7); },
+});
+
+// the lawn's cut-grass colours, for clippings, the catcher and the pile
+function clippingShades(look) {
+  const base = new THREE.Color(look.grass.base), tip = new THREE.Color(look.grass.tip);
+  return [0.85, 0.6, 0.35, 1].map((k) => base.clone().lerp(tip, k).getHex());
+}
 
 const garage = new Garage({ wheel, sound, hud });
 
@@ -102,7 +128,7 @@ let lastCutTime = 0, hintsOn = false, hintsSince = 0, hintRefresh = 0;
 let camMode = 'follow', camHeading = 0, timerDue = false;
 let simT = 0, last = performance.now();
 const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
-const session = { found: new Set(), playTime: 0 };
+const session = { found: new Set(), playTime: 0, cycle: { queue: [], last: null } };
 const tweens = [];
 
 // ---- little helpers ------------------------------------------------------------
@@ -128,6 +154,7 @@ function rightOf(h) { return [-Math.cos(h), Math.sin(h)]; }
 // ---- sessions, garage and lawns --------------------------------------------------
 function newSession() {
   session.found = new Set();
+  session.cycle = { queue: [], last: null };
   session.playTime = 0;
   timerDue = false;
 }
@@ -170,9 +197,14 @@ async function startLawn(index) {
   vehicle.fill = 0;
   vehicle.setTip(0);
   vehicle.place(world.start.x, world.start.z, world.start.heading);
+  vehicle.clearDecorations();   // add-ons last one lawn (parent's request, 2026-11-01)
   dog.spawn(world, vehicle);
+  garden.reset(world);
+  hud.clearCarrots();
+  clipColours = clippingShades(world.def.look);
+  vehicle.m.catcher.material = M.mat(clipColours[1]);
 
-  pile = M.grassPile();
+  pile = M.grassPile(clipColours, world.def.look.grass.flowerChance > 0.08 ? world.def.look.grass.flowers : []);
   pile.position.set(world.pile.x, 0, world.pile.z);
   pile.scale.setScalar(0.001);
   pile.visible = false;
@@ -191,7 +223,7 @@ async function startLawn(index) {
   countdown = 0; bumps = []; hopping = false;
   hud.setCountdown(null);
   idleStopped = false;
-  clippings.clear(); confetti.clear(); paintFx.clear(); trailUp.clear(); trailStars.clear(); trailFall.clear();
+  clippings.clear(); confetti.clear(); paintFx.clear(); trailUp.clear(); trailStars.clear(); trailFall.clear(); dirtFx.clear();
   bonusFound = 0;
   bonusIn = T.giftFirst;
   hud.clearBonusGifts();
@@ -362,7 +394,7 @@ function updatePlay(dt) {
     for (let i = 0; i < n; i++) {
       clippings.emit(vehicle.x + rx * 0.8, 0.3, vehicle.z + rz * 0.8,
         rx * (2 + Math.random() * 2) + (Math.random() - 0.5), 1.5 + Math.random() * 2, rz * (2 + Math.random() * 2) + (Math.random() - 0.5),
-        1.2, CLIPPING_COLOURS[(Math.random() * 4) | 0]);
+        1.2, clipColours[(Math.random() * clipColours.length) | 0]);
     }
   }
   cuttingLevel += ((cut > 0 ? 1 : 0) - cuttingLevel) * Math.min(1, dt * 8);
@@ -496,7 +528,7 @@ function openPresent(p) {
   else { giftsFound++; hud.setGifts(giftsFound); }
   sound.play('pop');
   confetti.burst(p.x, 0.5, p.z, 60, 3, CONFETTI_COLOURS, 1.6, 1.4);
-  const item = pickDecoration(session.found, vehicle.decorationIds());
+  const item = pickDecoration(session.found, vehicle.decorationIds(), session.cycle);
   session.found.add(item.id);
   flyer.visible = true;
   const sx = p.x, sz = p.z;
@@ -533,7 +565,7 @@ async function celebrate() {
     for (; done < upto; done++) {
       const t = left[done];
       g.cutTexel(t.k);
-      if (done % 24 === 0) clippings.burst(t.x, 0.3, t.z, 3, 1.5, CLIPPING_COLOURS, 1, 1);
+      if (done % 24 === 0) clippings.burst(t.x, 0.3, t.z, 3, 1.5, clipColours, 1, 1);
     }
     hud.setProgress(1);
   });
@@ -560,7 +592,7 @@ async function celebrate() {
     for (let i = 0; i < 4; i++) {
       clippings.emit(pour.x + (Math.random() - 0.5) * 0.8, pour.y + 0.4, pour.z,
         (world.pile.x - pour.x) * 0.5 + (Math.random() - 0.5), 1 + Math.random() * 2, (world.pile.z - pour.z) * 0.6 + (Math.random() - 0.5),
-        1.0, CLIPPING_COLOURS[(Math.random() * 4) | 0]);
+        1.0, clipColours[(Math.random() * clipColours.length) | 0]);
     }
   });
   await tween(0.5, (k) => vehicle.setTip(1 - ease(k)));
@@ -708,7 +740,9 @@ function frame(now) {
     else if (countdown > 0) { countdown = 0; hud.setCountdown(null); }
     runTweens(dt);
     vehicle.update(dt, simT);
-    dog.update(dt, simT, vehicle);
+    dog.update(dt, simT, vehicle, garden.holes);
+    garden.update(dt, simT, vehicle, { spawning: state === 'play', reach: CUT_RADIUS + 0.2 });
+    dirtFx.update(dt);
     world.grass.update(simT);
     world.update(simT);
     clippings.update(dt);
@@ -764,6 +798,16 @@ window.__grassnyer = {
   get presents() { return presents.filter((p) => !p.bonus).map((p) => ({ x: p.x, z: p.z, found: p.found })); },
   get bonusPresents() { return presents.filter((p) => p.bonus).map((p) => ({ x: p.x, z: p.z, found: p.found, falling: p.falling })); },
   get bonusFound() { return bonusFound; },
+  get garden() {
+    return { carrots: garden.carrots.filter((c) => !c.pulled).map((c) => ({ x: c.x, z: c.z, eaten: c.eaten })), collected: garden.collected,
+      holes: garden.holes.filter((h) => !h.flat).map((h) => ({ x: h.x, z: h.z })), bunny: garden.bunny && { x: garden.bunny.x, z: garden.bunny.z, state: garden.bunny.state } };
+  },
+  sproutCarrot(x, z) { garden.sproutCarrot(x, z); },
+  spawnBunny() { const c = garden.carrots.find((k) => !k.pulled); if (c) garden.spawnBunny(c, vehicle); },
+  moleHill(x, z) { garden.addMoleHill(x, z); },
+  get clipColours() { return clipColours; },
+  get carrotIcons() { return hud.carrotCount; },
+  get pileColour() { return pile.children[0].material.color.getHex(); },
   dropGift() { dropBonusPresent(); },
   get trail() { return vehicle && vehicle.decor.trail ? vehicle.decor.trail.id : null; },
   give(id) { const d = DECOR.BY_ID[id]; if (d) vehicle.setDecoration(d, false); },
@@ -773,6 +817,7 @@ window.__grassnyer = {
   },
   get idleStopped() { return idleStopped; },
   get gear() { return gear; },
+  get going() { return going; },
   get dog() { return { x: dog.x, z: dog.z, state: dog.state, visible: dog.root.visible }; },
   placeDog(x, z) { dog.place(x, z); },
   get countdown() { return countdown; },

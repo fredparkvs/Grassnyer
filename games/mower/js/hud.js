@@ -15,6 +15,7 @@ const SVG = {
   button: `<svg viewBox="0 0 60 60"><circle cx="30" cy="33" r="22" fill="#a51f1f"/><circle cx="30" cy="28" r="22" fill="#ff4a3d" stroke="#7a1010" stroke-width="3"/><ellipse cx="23" cy="20" rx="7" ry="4" fill="#ffffff" opacity="0.6"/></svg>`,
   pot: `<svg viewBox="0 0 40 44"><path d="M6 14 L34 14 L31 40 L9 40Z" fill="#9aa3ab" stroke="#333" stroke-width="2"/><ellipse cx="20" cy="14" rx="14" ry="5" fill="currentColor" stroke="#333" stroke-width="2"/><path d="M12 15 C12 24 16 22 16 28 C16 32 20 32 20 28 L20 16" fill="currentColor"/></svg>`,
   moon: `<svg viewBox="0 0 80 80"><path d="M50 8 A32 32 0 1 0 72 52 A26 26 0 1 1 50 8Z" fill="#fff3b0"/></svg>`,
+  carrot: `<svg viewBox="0 0 40 40"><path d="M19 13 L27 17 L13 37 Q10 38 11 35 Z" fill="#ff8a1f" stroke="#a84f00" stroke-width="2" stroke-linejoin="round"/><path d="M15 26 L18 27 M18 21 L21 22" stroke="#a84f00" stroke-width="1.5" stroke-linecap="round"/><path d="M22 15 C20 7 23 3 26 2 C25 6 25 10 24 14 M24 15 C27 9 31 8 34 8 C31 11 29 13 26 16 M21 14 C16 8 13 8 11 9 C14 11 17 13 20 15" fill="none" stroke="#2fa83a" stroke-width="3" stroke-linecap="round"/></svg>`,
   plug: `<svg viewBox="0 0 60 60"><circle cx="30" cy="30" r="22" fill="none" stroke="#fff" stroke-width="6"/><path d="M12 12 L48 48" stroke="#ff4a3d" stroke-width="7" stroke-linecap="round"/></svg>`,
 };
 
@@ -26,6 +27,7 @@ export class Hud {
       <div class="top hidden">
         <div class="meter"><span class="m-icon">${SVG.grass}</span><div class="bar"><div class="fill"></div></div><span class="m-icon">${SVG.star}</span></div>
         <div class="gifts">${[0, 1, 2].map(() => `<span class="gift">${SVG.gift}</span>`).join('')}</div>
+        <div class="carrots"></div>
       </div>
       <div class="light hidden"><i class="red"></i><i class="green"></i></div>
       <div class="wheel-hint hidden">${SVG.wheel}</div>
@@ -67,6 +69,20 @@ export class Hud {
   }
 
   clearBonusGifts() { this.root.querySelectorAll('.gift.bonus').forEach((el) => el.remove()); }
+
+  // carrots pulled up this lawn, in a row under the gifts (up to 15 fit)
+  addCarrot() {
+    const row = this.q('.carrots');
+    if (row.children.length >= 15) return;
+    const el = document.createElement('span');
+    el.className = 'carrot';
+    el.innerHTML = SVG.carrot;
+    row.appendChild(el);
+  }
+
+  clearCarrots() { this.q('.carrots').innerHTML = ''; }
+
+  get carrotCount() { return this.q('.carrots').children.length; }
 
   setLight(visible, going) {
     this.show('.light', visible);

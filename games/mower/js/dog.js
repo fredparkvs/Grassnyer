@@ -30,6 +30,9 @@ export class Dog {
     this.pant = 0;
     this.barkIn = 0;
     this.onBark = null;   // main.js plays the woof
+    this.onDig = null;    // main.js throws up the dirt
+    this.hole = null;     // the molehill it's going to dig at
+    this.dirtIn = 0;
   }
 
   // a free spot on this lawn, well away from the vehicle
@@ -91,7 +94,8 @@ export class Dog {
     return best;
   }
 
-  update(dt, t, vehicle) {
+  // holes: molehills it may go and dig at ({ x, z, flat })
+  update(dt, t, vehicle, holes = []) {
     if (!this.world) return;
     const dv = Math.hypot(this.x - vehicle.x, this.z - vehicle.z);
     this.timer -= dt;
@@ -108,7 +112,22 @@ export class Dog {
       if (this.replan <= 0 || !this.target) { this.target = this._fleeSpot(vehicle) || this._randomSpot(); this.replan = 0.4; }
       if (dv > SAFE) { this.state = 'idle'; this.timer = 1 + Math.random() * 2; this.target = null; }
     } else if (this.state === 'idle') {
-      if (this.timer <= 0) { this.target = this._randomSpot(); this.state = 'trot'; this.timer = 8; }
+      const open = holes.filter((h) => !h.flat);
+      if (this.timer <= 0 && open.length && Math.random() < 0.7) {   // ooh, a molehill!
+        this.hole = open[(Math.random() * open.length) | 0];
+        const a = Math.atan2(this.x - this.hole.x, this.z - this.hole.z);
+        this.target = { x: this.hole.x + Math.sin(a) * 0.75, z: this.hole.z + Math.cos(a) * 0.75 };
+        this.state = 'toDig';
+        this.timer = 10;
+      } else if (this.timer <= 0) { this.target = this._randomSpot(); this.state = 'trot'; this.timer = 8; }
+    } else if (this.state === 'toDig') {
+      const gone = !this.hole || this.hole.flat || !holes.includes(this.hole);
+      const there = this.target && Math.hypot(this.target.x - this.x, this.target.z - this.z) < 0.35;
+      if (gone || this.timer <= 0) { this.state = 'idle'; this.timer = 1; this.target = null; }
+      else if (there) { this.state = 'dig'; this.timer = 4 + Math.random() * 2; this.target = null; }
+    } else if (this.state === 'dig') {
+      const gone = !this.hole || this.hole.flat || !holes.includes(this.hole);
+      if (gone || this.timer <= 0) { this.state = 'idle'; this.timer = 2 + Math.random() * 2; this.hole = null; }
     } else if (this.state === 'trot') {
       const there = this.target && Math.hypot(this.target.x - this.x, this.target.z - this.z) < 0.5;
       if (!this.target || there || this.timer <= 0) {
@@ -119,9 +138,11 @@ export class Dog {
     }
 
     // ---- move ----
-    let want = this.state === 'run' ? RUN : this.state === 'trot' ? TROT : 0;
+    let want = this.state === 'run' ? RUN : this.state === 'trot' || this.state === 'toDig' ? TROT : 0;
     let wantHeading = this.heading;
-    if (this.target) {
+    if (this.state === 'dig' && this.hole) {
+      wantHeading = Math.atan2(this.hole.x - this.x, this.hole.z - this.z);   // face the molehill
+    } else if (this.target) {
       const dx = this.target.x - this.x, dz = this.target.z - this.z;
       const dist = Math.hypot(dx, dz);
       if (dist > 0.2) wantHeading = Math.atan2(dx, dz);
@@ -142,12 +163,20 @@ export class Dog {
     const s = Math.sin(this.phase);
     m.legs[0].rotation.x = m.legs[3].rotation.x = s * amp;    // trot: diagonal pairs together
     m.legs[1].rotation.x = m.legs[2].rotation.x = -s * amp;
+    const digging = this.state === 'dig';
+    if (digging) {   // front paws scrabbling, dirt flying out behind
+      m.legs[0].rotation.x = Math.sin(t * 20) * 0.9 - 0.4;
+      m.legs[1].rotation.x = Math.sin(t * 20 + Math.PI) * 0.9 - 0.4;
+      this.dirtIn -= dt;
+      if (this.dirtIn <= 0 && this.hole) { this.dirtIn = 0.12; this.onDig?.(this.hole.x, this.hole.z, this.heading); }
+    }
+    m.body.rotation.x += ((digging ? 0.25 : 0) - m.body.rotation.x) * Math.min(1, dt * 6);
     m.body.position.y = Math.abs(Math.cos(this.phase)) * 0.07 * Math.min(1, this.speed / 2);
     m.tail.rotation.z = Math.sin(t * (this.speed > 3 ? 16 : 8)) * 0.3;
     this.pant = this.state === 'run' ? 4 : Math.max(0, this.pant - dt);
     m.tongue.visible = this.pant > 0;
     // standing still: watch the vehicle, now and then nose down for a sniff
-    let lookYaw = 0, lookDown = 0;
+    let lookYaw = 0, lookDown = digging ? 0.55 : 0;
     if (this.state === 'idle') {
       const rel = wrap(Math.atan2(vehicle.x - this.x, vehicle.z - this.z) - this.heading);
       if (Math.abs(rel) < 1.6) lookYaw = clamp(rel, -0.9, 0.9);

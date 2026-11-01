@@ -164,6 +164,49 @@ async function main() {
       shanwan.gas.button === 0 && shanwan.brake.button === 2 && shanwan.goButton === 3 && shanwan.paintButton === 1
       && shanwan.gearForward.raw === 7 && shanwan.gearReverse.raw === 6 && shanwan.steer.axis === 0, JSON.stringify(shanwan));
 
+    // ---- presents take turns between the kinds of add-on ----
+    const turns = await G(`import('/games/mower/js/decorations.js').then((D) => {
+      const cycle = { queue: [], last: null }, found = new Set(), slots = [];
+      for (let i = 0; i < 24; i++) { const d = D.pickDecoration(found, {}, cycle); found.add(d.id); slots.push(d.slot); }
+      return { slots, kinds: D.SLOTS.length };
+    })`);
+    const firstRound = new Set(turns.slots.slice(0, turns.kinds));
+    const repeats = turns.slots.some((sl, i) => i > 0 && sl === turns.slots[i - 1]);
+    check('presents take turns: every kind once before any comes again, never twice in a row', firstRound.size === turns.kinds && !repeats, turns.slots.slice(0, 10).join(','));
+
+    // ---- carrots in the cut grass, the bunny, molehills and the digging dog ----
+    await G('__grassnyer.place(3, 5, Math.PI)');
+    await G('__grassnyer.sproutCarrot(3, 2)');
+    for (const end = Date.now() + 15000; Date.now() < end && (await G('__grassnyer.garden')).collected === 0; ) await tap(5);
+    check('driving over a carrot pulls it up', (await G('__grassnyer.garden')).collected === 1, JSON.stringify(await G('__grassnyer.garden')));
+    check('it joins the carrot row at the top', (await G('__grassnyer.carrotIcons')) === 1, String(await G('__grassnyer.carrotIcons')));
+    // stop the tractor (press Stop/Go until it really has stopped) for the bunny and the dog
+    for (let i = 0; i < 6 && (await G('__grassnyer.going')); i++) { await G('__press(0, true)'); await sleep(500); await G('__press(0, false)'); await sleep(500); }
+    await G('__grassnyer.place(-8, 6, 0)');
+    await G('__grassnyer.sproutCarrot(6, -3)');
+    await G('__grassnyer.spawnBunny()');
+    let bun = (await G('__grassnyer.garden')).bunny;
+    check('a bunny comes for the carrot', !!bun && ['hop', 'eat'].includes(bun.state), JSON.stringify(bun));
+    await G(`__grassnyer.place(${bun ? bun.x : 6}, ${bun ? bun.z + 2.5 : 0}, Math.PI)`);   // the tractor comes close
+    for (const end = Date.now() + 10000; Date.now() < end; ) {
+      bun = (await G('__grassnyer.garden')).bunny;
+      if (!bun || bun.state === 'flee') break;
+      await tap(5);
+    }
+    check('the bunny runs away when the tractor comes near', !bun || bun.state === 'flee', JSON.stringify(bun));
+    await G('__grassnyer.place(-8, 6, 0)');
+    await G('__grassnyer.moleHill(6, 3)');
+    await G('__grassnyer.placeDog(6, 4.6)');
+    let dug = false;
+    for (const end = Date.now() + 30000; Date.now() < end && !dug; ) { await tap(5); dug = ['toDig', 'dig'].includes((await G('__grassnyer.dog')).state); }
+    check('the dog goes to dig at a molehill', dug, JSON.stringify(await G('__grassnyer.dog')));
+    await shot('04f-garden');
+    for (let i = 0; i < 6 && !(await G('__grassnyer.going')); i++) { await G('__press(0, true)'); await sleep(500); await G('__press(0, false)'); await sleep(500); }
+    await G('__grassnyer.place(6, 5.4, Math.PI)');   // and drive over the molehill
+    for (const end = Date.now() + 15000; Date.now() < end && (await G('__grassnyer.garden')).holes.length; ) await tap(5);
+    check('driving over a molehill flattens it', (await G('__grassnyer.garden')).holes.length === 0, JSON.stringify((await G('__grassnyer.garden')).holes));
+    check('the grass heap is made of this lawn\'s cut grass', (await G('__grassnyer.clipColours')).includes(await G('__grassnyer.pileColour')));
+
     // ---- every lawn has its own look ----
     const looks = await G(`import('/games/mower/js/lawns.js').then((L) => L.LAWNS.map((l) => [l.look.grass.tip, l.look.sky[0], l.look.grass.blades + '/' + l.look.grass.width].join(' ')))`);
     check('every lawn has its own grass and sky', new Set(looks).size === looks.length && looks.length === 5, looks.join(' | '));
@@ -196,7 +239,8 @@ async function main() {
     await G("__grassnyer.give('trail-sparkles')");
     await G('__grassnyer.place(3, 4, Math.PI)');
     for (let i = 0; i < 4; i++) await tap(5);
-    check('a magic trail goes on the vehicle', (await G('__grassnyer.trail')) === 'trail-sparkles');
+    // (a present opened just before may land a different trail on top: presents take turns, so trails come round often)
+    check('a magic trail goes on the vehicle', String(await G('__grassnyer.trail')).startsWith('trail-'), String(await G('__grassnyer.trail')));
     await shot('04e-trail');
 
     // ---- the chow chow: on the lawn, and runs off when the tractor comes ----
@@ -299,7 +343,7 @@ async function main() {
     await until(() => window.__grassnyer.state === 'play' && window.__grassnyer.lawn === 1, 60000).catch(() => {});
     check('next lawn starts automatically', (await G('__grassnyer.lawn')) === 1);
     v = await G('__grassnyer.vehicle');
-    check('decorations carry over to the next lawn', Object.keys(v.decorations).length >= 2);
+    check('add-ons are cleared for the next lawn', Object.keys(v.decorations).length === 0, JSON.stringify(v.decorations));
     await sleep(800);
     await shot('10-lawn2');
 
