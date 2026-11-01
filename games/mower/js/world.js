@@ -36,6 +36,13 @@ export function makeSky() {
   sky.renderOrder = -10;
   g.add(sky);
   const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xbbbbbb, flatShading: true, fog: false });
+  // each lawn has its own sky (see the looks in lawns.js)
+  g.userData.apply = (look) => {
+    sky.material.uniforms.uTop.value.set(look.sky[0]);
+    sky.material.uniforms.uHorizon.value.set(look.sky[1]);
+    cloudMat.color.set(look.clouds ?? 0xffffff);
+    cloudMat.emissive.set(look.clouds ?? 0xffffff).multiplyScalar(0.73);
+  };
   const rnd = mulberry(99);
   for (let i = 0; i < 9; i++) {
     const c = new THREE.Group();
@@ -54,10 +61,74 @@ export function makeSky() {
 }
 
 export function addLights(scene) {
-  scene.add(new THREE.HemisphereLight(0xe8f6ff, 0x6a9a48, 1.7));
+  const hemi = new THREE.HemisphereLight(0xe8f6ff, 0x6a9a48, 1.7);
+  scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xfff6e0, 2.2);
   sun.position.set(6, 12, 8);
   scene.add(sun);
+  return { hemi, sun };
+}
+
+// Sky, fog and light for a lawn's look.
+export function applyLook(look, { scene, sky, lights }) {
+  sky.userData.apply(look);
+  scene.fog.color.set(look.fog);
+  lights.hemi.color.set(look.hemi[0]);
+  lights.hemi.groundColor.set(look.hemi[1]);
+  lights.hemi.intensity = look.hemi[2];
+  lights.sun.color.set(look.sun[0]);
+  lights.sun.intensity = look.sun[1];
+  lights.sun.position.set(...look.sun[2]);
+}
+
+// Little things floating in the air: petals, dandelion fluff, golden dust or fireflies.
+let moteTex = null;
+function makeMotes(motes, w, h) {
+  if (!moteTex) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 32;
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(16, 16, 1, 16, 16, 16);
+    grd.addColorStop(0, 'rgba(255,255,255,1)');
+    grd.addColorStop(0.4, 'rgba(255,255,255,0.8)');
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 32, 32);
+    moteTex = new THREE.CanvasTexture(c);
+  }
+  const n = 130, glowy = motes.kind === 'fireflies';
+  const pos = new Float32Array(n * 3), col = new Float32Array(n * 3), base = [], colours = [];
+  const rnd = mulberry(w * 7 + h);
+  const c = new THREE.Color();
+  for (let i = 0; i < n; i++) {
+    base.push({ x: (rnd() - 0.5) * (w + 6), y: 0.4 + rnd() * (glowy ? 1.6 : 3), z: (rnd() - 0.5) * (h + 6), p: rnd() * 6.3, s: 0.5 + rnd() });
+    colours.push(c.set(motes.colours[i % motes.colours.length]).clone());
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e4);
+  const points = new THREE.Points(geo, new THREE.PointsMaterial({
+    size: glowy ? 0.3 : motes.kind === 'dust' ? 0.09 : 0.16, map: moteTex, vertexColors: true, transparent: true,
+    depthWrite: false, blending: glowy || motes.kind === 'dust' ? THREE.AdditiveBlending : THREE.NormalBlending,
+  }));
+  const drift = motes.kind === 'petals' || motes.kind === 'fluff' ? 0.35 : 0;   // carried along on the breeze
+  const update = (t) => {
+    for (let i = 0; i < n; i++) {
+      const b = base[i];
+      let x = b.x + Math.sin(t * 0.4 * b.s + b.p) * 0.8 + t * drift * b.s;
+      x = ((x + (w + 6) / 2) % (w + 6) + (w + 6)) % (w + 6) - (w + 6) / 2;
+      pos[i * 3] = x;
+      pos[i * 3 + 1] = b.y + Math.sin(t * 0.9 * b.s + b.p * 2) * 0.25;
+      pos[i * 3 + 2] = b.z + Math.cos(t * 0.33 * b.s + b.p) * 0.8;
+      const k = glowy ? Math.max(0, Math.sin(t * 2 * b.s + b.p * 3)) : 1;   // fireflies blink
+      col[i * 3] = colours[i].r * k; col[i * 3 + 1] = colours[i].g * k; col[i * 3 + 2] = colours[i].b * k;
+    }
+    geo.attributes.position.needsUpdate = true;
+    geo.attributes.color.needsUpdate = true;
+  };
+  update(0);
+  return { points, update };
 }
 
 // ---------------------------------------------------------------------------
@@ -68,13 +139,14 @@ export function buildWorld(index) {
   const circles = [], boxes = [], shapes = [];
 
   // ground outside the lawn
-  const outside = new THREE.Mesh(new THREE.PlaneGeometry(260, 260).rotateX(-Math.PI / 2), M.mat(0x69a94b));
+  const look = def.look;
+  const outside = new THREE.Mesh(new THREE.PlaneGeometry(260, 260).rotateX(-Math.PI / 2), M.mat(look.ground));
   outside.position.y = -0.02;
   group.add(outside);
   const rnd = mulberry(index * 977 + 13);
   for (let i = 0; i < 6; i++) { // rolling hills on the horizon
     const a = (i / 6) * Math.PI * 2 + 0.4;
-    const hill = new THREE.Mesh(new THREE.SphereGeometry(28 + rnd() * 10, 16, 8), M.mat(i % 2 ? 0x5e9e42 : 0x6fb04f));
+    const hill = new THREE.Mesh(new THREE.SphereGeometry(28 + rnd() * 10, 16, 8), M.mat(look.hills[i % 2]));
     hill.scale.y = 0.28;
     hill.position.set(Math.cos(a) * 85, -2, Math.sin(a) * 85);
     group.add(hill);
@@ -140,7 +212,7 @@ export function buildWorld(index) {
   const compost = M.compostBin();
   compost.position.set(-w / 2 + 3.5, 0, yardZ - 5.6);
   group.add(compost);
-  const yard = new THREE.Mesh(new THREE.PlaneGeometry(w + 4, 8).rotateX(-Math.PI / 2), M.mat(0x7fb35a));
+  const yard = new THREE.Mesh(new THREE.PlaneGeometry(w + 4, 8).rotateX(-Math.PI / 2), M.mat(look.yard));
   yard.position.set(0, -0.01, yardZ - 4.5);
   group.add(yard);
 
@@ -180,8 +252,10 @@ export function buildWorld(index) {
 
   const start = { x: 0, z: h / 2 - 2.2, heading: Math.PI };
   const bounds = { minX: -w / 2, maxX: w / 2, minZ: -h / 2, maxZ: h / 2 };
-  const grass = new GrassField({ w, h, shapes, start, radius: VEHICLE_RADIUS, cutRadius: CUT_RADIUS });
+  const grass = new GrassField({ w, h, shapes, start, radius: VEHICLE_RADIUS, cutRadius: CUT_RADIUS, look });
   group.add(grass.group);
+  const motes = look.motes ? makeMotes(look.motes, w, h) : null;
+  if (motes) group.add(motes.points);
 
   return {
     def, index, group, grass, start,
@@ -189,6 +263,7 @@ export function buildWorld(index) {
     pile: { x: compost.position.x, z: yardZ - 5.0 },
     dumpSpot: { x: compost.position.x, z: yardZ - 1.7, heading: 0 },
     shed: { obj: shed, x: shed.position.x, z: shed.position.z, parkZ: yardZ - 6.9, door: { x: shed.position.x, z: yardZ - 1.7 } },
+    update(t) { motes?.update(t); },
     dispose() {
       grass.dispose();
     },

@@ -15,18 +15,20 @@ const TUFT_SPACING = 0.33;
 const CHUNK = 6;
 const GRASS_HEIGHT = 0.6;
 
-function tuftGeometry() {
+// A tuft of blades. Each lawn's look can change the blade count, width and lean
+// (broad lush grass, thin wispy meadow, straight wheat...).
+function tuftGeometry({ blades = 7, width = 1, lean: leanAmount = 0.25 } = {}) {
   const pos = [];
   const rnd = mulberry(7);
-  for (let b = 0; b < 7; b++) {
+  for (let b = 0; b < blades; b++) {
     const a = rnd() * Math.PI * 2;
     const r = rnd() * 0.16;
     const bx = Math.cos(a) * r, bz = Math.sin(a) * r;
     const ang = rnd() * Math.PI;
-    const w = 0.05 + rnd() * 0.03;
+    const w = (0.05 + rnd() * 0.03) * width;
     const dx = Math.cos(ang) * w, dz = Math.sin(ang) * w;
     const h = 0.7 + rnd() * 0.3;
-    const lean = (rnd() - 0.5) * 0.25;
+    const lean = (rnd() - 0.5) * leanAmount;
     pos.push(bx - dx, 0, bz - dz, bx + dx, 0, bz + dz, bx + lean, h, bz + lean * 0.5);
   }
   return new THREE.Float32BufferAttribute(pos, 3);
@@ -51,6 +53,10 @@ uniform float uTime;
 uniform float uHeight;
 uniform vec3 uBase;
 uniform vec3 uTip;
+uniform vec3 uFlowerA;
+uniform vec3 uFlowerB;
+uniform vec3 uFlowerC;
+uniform float uFlowerChance;
 varying vec3 vColor;
 #include <fog_pars_vertex>
 void main() {
@@ -59,13 +65,18 @@ void main() {
   float h = position.y;
   float s = sin(iPos.z), c = cos(iPos.z);
   vec3 p = vec3(position.x * c - position.z * s, position.y, position.x * s + position.z * c);
-  float scale = uHeight * (0.75 + 0.5 * iRand.x) * tall;
+  // some tufts are in flower: their tips turn a flower colour, and they stand a bit taller
+  float fr = fract(sin(dot(iPos.xy, vec2(12.9898, 78.233))) * 43758.5453);
+  float isFlower = step(fr, uFlowerChance);
+  float which = fract(fr * 97.13);
+  vec3 flower = which < 0.34 ? uFlowerA : (which < 0.67 ? uFlowerB : uFlowerC);
+  float scale = uHeight * (0.75 + 0.5 * iRand.x) * tall * (1.0 + 0.18 * isFlower);
   p.y *= scale;
   float sway = sin(uTime * 1.6 + iPos.x * 0.5 + iPos.y * 0.35) * 0.07 + sin(uTime * 2.7 + iPos.x * 1.3) * 0.025;
   p.x += sway * h * h * tall;
   vec4 mvPosition = modelViewMatrix * vec4(iPos.x + p.x, p.y, iPos.y + p.z, 1.0);
   gl_Position = projectionMatrix * mvPosition;
-  vColor = mix(uBase, uTip, h) * (0.85 + 0.3 * iRand.y);
+  vColor = mix(uBase, mix(uTip, flower, isFlower), h) * (0.85 + 0.3 * iRand.y);
   #include <fog_vertex>
 }`;
 
@@ -114,8 +125,12 @@ void main() {
 
 export class GrassField {
   // lawn: { w, h }, shapes: obstacle footprints, start: {x, z}, radius: vehicle radius, cut: cut radius
-  constructor({ w, h, shapes, start, radius, cutRadius }) {
+  // look: { grass: { base, tip, height, blades, width, lean, flowers, flowerChance }, mowed: { under, a, b } }
+  constructor({ w, h, shapes, start, radius, cutRadius, look = {} }) {
     this.w = w; this.h = h;
+    this.look = look;
+    const gl = look.grass || {};
+    const flowers = gl.flowers && gl.flowers.length ? gl.flowers : [0xffffff];
     this.minX = -w / 2; this.minZ = -h / 2;
     this.tw = Math.round(w * RES);
     this.th = Math.round(h * RES);
@@ -136,8 +151,12 @@ export class GrassField {
     const lawnU = new THREE.Vector4(this.minX, this.minZ, w, h);
     this.uniforms = {
       uMask: { value: this.texture }, uLawn: { value: lawnU }, uTime: { value: 0 },
-      uHeight: { value: GRASS_HEIGHT },
-      uBase: { value: new THREE.Color(0x2f7a24) }, uTip: { value: new THREE.Color(0x9ad94f) },
+      uHeight: { value: gl.height ?? GRASS_HEIGHT },
+      uBase: { value: new THREE.Color(gl.base ?? 0x2f7a24) }, uTip: { value: new THREE.Color(gl.tip ?? 0x9ad94f) },
+      uFlowerA: { value: new THREE.Color(flowers[0]) },
+      uFlowerB: { value: new THREE.Color(flowers[1 % flowers.length]) },
+      uFlowerC: { value: new THREE.Color(flowers[2 % flowers.length]) },
+      uFlowerChance: { value: gl.flowerChance ?? 0 },
     };
     this._buildGround(lawnU);
     this._buildTufts();
@@ -223,8 +242,9 @@ export class GrassField {
     const mat = new THREE.ShaderMaterial({
       uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
         uMask: { value: null }, uLawn: { value: lawnU },
-        uUnder: { value: new THREE.Color(0x3e7d2a) },
-        uShortA: { value: new THREE.Color(0x86c95a) }, uShortB: { value: new THREE.Color(0x6fb447) },
+        uUnder: { value: new THREE.Color(this.look.mowed?.under ?? 0x3e7d2a) },
+        uShortA: { value: new THREE.Color(this.look.mowed?.a ?? 0x86c95a) },
+        uShortB: { value: new THREE.Color(this.look.mowed?.b ?? 0x6fb447) },
       }]),
       vertexShader: GROUND_VERT, fragmentShader: GROUND_FRAG, fog: true,
     });
@@ -234,7 +254,7 @@ export class GrassField {
   }
 
   _buildTufts() {
-    const base = tuftGeometry();
+    const base = tuftGeometry(this.look.grass);
     const mat = new THREE.ShaderMaterial({
       uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, this.uniforms]),
       vertexShader: GRASS_VERT, fragmentShader: GRASS_FRAG, fog: true, side: THREE.DoubleSide,

@@ -62,6 +62,16 @@ The repo is also the home for future kids' games on the same Pi.
 | 4 | Farm field | Bigger and open, where the tractor feels at home. |
 | 5 | Big garden | Everything from the first four. |
 
+Each lawn has its own look (added 2026-11-01 at the parent's request): its own sky, light, grass colour and blade shape, flowers among the grass, mowed-stripe colours, and something floating in the air.
+
+| # | Look |
+|---|------|
+| 1 | Sunny summer day: bright green grass with a few white and yellow daisies. |
+| 2 | Flowery morning: lush, broad blue-green grass full of pink, purple and white flowers; a soft pink sky; petals drifting. |
+| 3 | Golden afternoon meadow: tall, thin, wispy grass with dandelions; dandelion fluff floating by. |
+| 4 | Wheat field at sunset: straight golden stalks with a few red poppies; an orange-pink sky; straw-coloured stubble; dust glinting. |
+| 5 | Magic evening: teal grass with glowing blue, purple and white flower tips; a purple-pink sky; fireflies. |
+
 Every lawn has:
 - Tall grass, plus a few big, obvious obstacles.
 - Flower beds that can't be mowed: the vehicle slides around them and they stay standing, with no penalty.

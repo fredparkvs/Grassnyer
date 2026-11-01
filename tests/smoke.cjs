@@ -158,6 +158,10 @@ async function main() {
     writer.kill();
     await G(`import('/kit/settings.js').then((s) => s.updateSettings({ wheel: null }))`);
 
+    // ---- every lawn has its own look ----
+    const looks = await G(`import('/games/mower/js/lawns.js').then((L) => L.LAWNS.map((l) => [l.look.grass.tip, l.look.sky[0], l.look.grass.blades + '/' + l.look.grass.width].join(' ')))`);
+    check('every lawn has its own grass and sky', new Set(looks).size === looks.length && looks.length === 5, looks.join(' | '));
+
     // ---- surprises: lots of kinds, and every one fits both vehicles ----
     const pool = await G(`Promise.all([import('/games/mower/js/decorations.js'), import('/games/mower/js/vehicle.js')]).then(([D, V]) => {
       const bad = [];
@@ -176,7 +180,8 @@ async function main() {
     check('a bonus present floats down', bonus.length === 1 && bonus[0].falling, JSON.stringify(bonus));
     await shot('04d-bonus-falling');
     await G('__press(0, true)'); await sleep(250); await G('__press(0, false)');   // stop and watch it land
-    for (const end = Date.now() + 20000; Date.now() < end && (await G('__grassnyer.bonusPresents'))[0].falling; ) await sleep(250);
+    // keep touching the wheel (button 5 has no job) so it doesn't fall asleep while we wait
+    for (const end = Date.now() + 25000; Date.now() < end && (await G('__grassnyer.bonusPresents'))[0].falling; ) await tap(5);
     bonus = await G('__grassnyer.bonusPresents');
     check('it lands on the lawn', !bonus[0].falling, JSON.stringify(bonus[0]));
     await G(`__grassnyer.place(${bonus[0].x}, ${bonus[0].z + 0.2}, Math.PI)`);
@@ -359,6 +364,7 @@ async function main() {
     await G('__setSteer(0)');
     await G('__pad.axes[5] = 1'); await sleep(900); await G('__pad.axes[5] = -1'); await sleep(300);
     await G('__pad.axes[2] = 1'); await sleep(900); await G('__pad.axes[2] = -1'); await sleep(300);
+    for (const b of [1, 2]) await tap(b);   // gear lever forward, then back
     for (const b of [3, 4, 9, 10]) await tap(b);
     await shot('15-wheel-setup');
     await tap(3);
@@ -366,7 +372,8 @@ async function main() {
     saved = await page.evaluate(async () => (await fetch('/api/settings')).json());
     const wm = saved.wheel || {};
     check('wheel setup saves the mapping', wm.steer?.axis === 0 && wm.gas?.axis === 5 && wm.brake?.axis === 2
-      && wm.goButton === 3 && wm.paintButton === 4 && wm.parentButtons?.join() === '9,10', JSON.stringify(wm));
+      && wm.goButton === 3 && wm.paintButton === 4 && wm.parentButtons?.join() === '9,10'
+      && wm.gearForward?.button === 1 && wm.gearReverse?.button === 2, JSON.stringify(wm));
     await page.keyboard.press('Escape');
 
     check('no errors in the page', errors.length === 0, errors.slice(0, 3).join(' | '));

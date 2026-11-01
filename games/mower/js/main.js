@@ -10,7 +10,7 @@ import { loadSettings, settings, gameState, saveSoon, saveNow } from '/kit/setti
 import { Wheel } from '/kit/input.js';
 import { Sound } from '/kit/audio.js';
 import { ParentMenu } from '/kit/parent.js';
-import { buildWorld, makeSky, addLights, CUT_RADIUS } from './world.js';
+import { buildWorld, makeSky, addLights, applyLook, CUT_RADIUS } from './world.js';
 import { LAWNS } from './lawns.js';
 import { Garage } from './garage.js';
 import { Hud } from './hud.js';
@@ -62,8 +62,9 @@ wheel.onParent = () => (state === 'sleep' ? wake() : toggleMenu());
 // ---- lawn scene ------------------------------------------------------------
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xd8f1ff, 45, 120);
-scene.add(makeSky());
-addLights(scene);
+const sky = makeSky();
+scene.add(sky);
+const lights = addLights(scene);
 const camera = new THREE.PerspectiveCamera(52, 16 / 9, 0.1, 400);
 const clippings = new Particles(500, { size: 0.13, gravity: -9, drag: 1.5 });
 const confetti = new Particles(600, { size: 0.22, gravity: -2.5, drag: 1.2 });
@@ -157,6 +158,7 @@ async function startLawn(index) {
   presents.forEach((p) => scene.remove(p.obj));
   world = buildWorld(index);
   scene.add(world.group);
+  applyLook(world.def.look, { scene, sky, lights });   // each lawn has its own sky and light
   currentLawn = index;
   gs.nextLawn = (index + 1) % LAWNS.length;
   saveSoon();
@@ -708,6 +710,7 @@ function frame(now) {
     vehicle.update(dt, simT);
     dog.update(dt, simT, vehicle);
     world.grass.update(simT);
+    world.update(simT);
     clippings.update(dt);
     confetti.update(dt);
     trailUp.update(dt); trailStars.update(dt); trailFall.update(dt);
@@ -780,6 +783,7 @@ window.__grassnyer = {
   get bounds() { return world && world.colliders.bounds; },
   get hints() { return hintsOn; },
   get tufts() { return world ? world.grass.tuftCount : 0; },
+  get lawnName() { return world ? world.def.name : null; },
   mowTo(fraction) {
     const g = world.grass;
     const left = g.remainingTexels();
