@@ -94,8 +94,10 @@ Rules:
 **Measured on the Pi (see `docs/wheel-notes.md`):** the wheel reports as a PS3
 pad, "SHANWAN PS3 GamePad" (`054c:0268`, `hid-sony`), with no X axis. Chromium's
 PS3 layout gives steering correctly on axis 0 but loses L2/R2, which is
-the gear lever, so the game server reads those itself (`/api/joystick`). Pedals,
-rumble and the MODE button are still untested.
+the gear lever (R2 forward, L2 back), so the game server reads those itself
+(`/api/joystick`). The pedals are on/off copies of cross (gas) and square
+(brake), so Stop/Go is on triangle. SuperTuxKart's pedals are rebound in its
+`input.xml`. Rumble and the MODE button are still untested.
 
 Before it was plugged in, the guess was the DragonRise / PXN V900 family: USB
 `11ff:0511` in X-input mode (kernel `xpad` driver), `0079:1864` in D-input

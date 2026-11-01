@@ -116,8 +116,11 @@ for _ in range(100):
     try:
         fd = os.open(${JSON.stringify(path.join(input, 'js0'))}, os.O_WRONLY | os.O_NONBLOCK); break
     except OSError: time.sleep(0.1)
-os.write(fd, struct.pack('IhBB', 0, 1, 1, 6) + struct.pack('IhBB', 0, 1, 1, 7))
-time.sleep(9)
+# a FIFO hands each write to only one reader, and the game server reads it too
+# (a real /dev/input/js0 gives every reader a copy), so keep re-sending "held"
+for _ in range(45):
+    os.write(fd, struct.pack('IhBB', 0, 1, 1, 6) + struct.pack('IhBB', 0, 1, 1, 7))
+    time.sleep(0.2)
 `]);
     check('holding the parent buttons for 5 s closes it', await waitNative(false, 12000));
     holder.kill();

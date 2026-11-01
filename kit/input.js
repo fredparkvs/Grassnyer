@@ -16,16 +16,25 @@ const PARENT_HOLD_SECONDS = 5;
 // (read by the game server, see RawJoystick below). null means no lever.
 
 // Wheels found by testing on the Pi (docs/wheel-notes.md), matched by the
-// name the driver reports. The "SHANWAN PS3 GamePad" wheel pretends to be a
-// PS3 pad but has no X axis, which throws Chromium's PS3 layout off by one:
-// steering still lands on axis 0, but L2/R2 (its gear lever) are lost.
+// name the driver reports; their mapping replaces the guesses below.
+// The "SHANWAN PS3 GamePad" wheel pretends to be a PS3 pad but has no X axis,
+// which throws Chromium's PS3 layout off by one: steering still lands on axis
+// 0, but L2/R2 (its gear lever) are lost, so the server reads those (raw).
+// Its pedals are plain buttons: gas sends cross (0), brake sends square (2),
+// so Stop/Go moves to triangle (3), or the gas pedal would stop the mower.
 const KNOWN_WHEELS = [
-  { name: /SHANWAN PS3 GamePad/i, gearForward: { raw: 7 }, gearReverse: { raw: 6 } },
+  {
+    name: /SHANWAN PS3 GamePad/i,
+    mapping: {
+      gas: { button: 0 }, brake: { button: 2 }, goButton: 3, paintButton: 1, parentButtons: [8, 9],
+      gearForward: { raw: 7 }, gearReverse: { raw: 6 },
+    },
+  },
 ];
 
 export function defaultMapping(pad, rawName = '') {
   const known = KNOWN_WHEELS.find((w) => w.name.test(rawName) || w.name.test(pad?.id || ''));
-  const lever = { gearForward: known?.gearForward || null, gearReverse: known?.gearReverse || null };
+  const measured = { gearForward: null, gearReverse: null, ...(known?.mapping || {}) };
   if (pad && pad.mapping === 'standard') {
     return {
       gamepadId: null,
@@ -35,7 +44,7 @@ export function defaultMapping(pad, rawName = '') {
       goButton: 0,
       paintButton: 1,
       parentButtons: [8, 9],
-      ...lever,
+      ...measured,
     };
   }
   // Linux xpad / joydev order: X, Y, Z(LT), RX, RY, RZ(RT), hat X, hat Y.
@@ -47,7 +56,7 @@ export function defaultMapping(pad, rawName = '') {
     goButton: 0,
     paintButton: 1,
     parentButtons: [6, 7],
-    ...lever,
+    ...measured,
   };
 }
 

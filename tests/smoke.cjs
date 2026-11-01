@@ -158,6 +158,12 @@ async function main() {
     writer.kill();
     await G(`import('/kit/settings.js').then((s) => s.updateSettings({ wheel: null }))`);
 
+    // ---- the family's wheel: its measured layout ----
+    const shanwan = await G(`import('/kit/input.js').then((I) => I.defaultMapping({ id: 'SHANWAN PS3 GamePad (STANDARD GAMEPAD Vendor: 054c Product: 0268)', mapping: 'standard' }))`);
+    check("the family's wheel: gas and brake pedals, Stop/Go on triangle, lever read by the server",
+      shanwan.gas.button === 0 && shanwan.brake.button === 2 && shanwan.goButton === 3 && shanwan.paintButton === 1
+      && shanwan.gearForward.raw === 7 && shanwan.gearReverse.raw === 6 && shanwan.steer.axis === 0, JSON.stringify(shanwan));
+
     // ---- every lawn has its own look ----
     const looks = await G(`import('/games/mower/js/lawns.js').then((L) => L.LAWNS.map((l) => [l.look.grass.tip, l.look.sky[0], l.look.grass.blades + '/' + l.look.grass.width].join(' ')))`);
     check('every lawn has its own grass and sky', new Set(looks).size === looks.length && looks.length === 5, looks.join(' | '));
@@ -179,7 +185,6 @@ async function main() {
     let bonus = await G('__grassnyer.bonusPresents');
     check('a bonus present floats down', bonus.length === 1 && bonus[0].falling, JSON.stringify(bonus));
     await shot('04d-bonus-falling');
-    await G('__press(0, true)'); await sleep(250); await G('__press(0, false)');   // stop and watch it land
     // keep touching the wheel (button 5 has no job) so it doesn't fall asleep while we wait
     for (const end = Date.now() + 25000; Date.now() < end && (await G('__grassnyer.bonusPresents'))[0].falling; ) await tap(5);
     bonus = await G('__grassnyer.bonusPresents');
@@ -187,7 +192,6 @@ async function main() {
     await G(`__grassnyer.place(${bonus[0].x}, ${bonus[0].z + 0.2}, Math.PI)`);
     await until(() => window.__grassnyer.bonusFound > 0, 8000).catch(() => {});
     check('driving over it opens it', (await G('__grassnyer.bonusFound')) === 1, String(await G('__grassnyer.bonusFound')));
-    await G('__press(0, true)'); await sleep(250); await G('__press(0, false)');   // and go again
     // a magic trail present scatters sparkles behind the moving vehicle
     await G("__grassnyer.give('trail-sparkles')");
     await G('__grassnyer.place(3, 4, Math.PI)');

@@ -46,24 +46,43 @@ real PS3 pad.
   axis 2 is the unused `ABS_RX` and axis 5 doesn't exist. Steering lands on axis 0
   by luck.
 
-## The gear lever
+## Pedals and gear lever (measured with the parent, 2026-11-01)
 
-When the child rocks the gear lever, L2 and R2 alternate, each held for about
-0.3 s with a short gap between. That looks like a two-way lever, not pedals.
-**This still needs confirming with the parent**, along with which way is forward.
-For now the default is: forward = R2 (raw 7), reverse = L2 (raw 6).
+| Control | Sends | In the browser (standard layout) |
+|---|---|---|
+| Right pedal (gas) | cross, `BTN_SOUTH`, raw 0, on/off only | button 0 |
+| Left pedal (brake) | square, `BTN_WEST`, raw 3, on/off only | button 2 |
+| Gear lever forward | R2: `BTN_TR2` (raw 7) plus `ABS_RZ` 0/255 | lost |
+| Gear lever back | L2: `BTN_TL2` (raw 6) plus `ABS_Z` 0/255 | lost |
+
+The pedals are just copies of the cross and square buttons, so the wheel's own
+cross and square buttons do the same as the pedals. Because of that:
+
+- In the mower game, Stop/Go is on **triangle** (3) for this wheel. On cross it
+  was the gas pedal, so pressing gas stopped the mower. Paint is circle (1).
+  Gas is button 0 and brake is button 2 (for pedals mode). See `KNOWN_WHEELS`
+  in `kit/input.js`.
+- Parent buttons: select + start, which are 8 and 9 both in the browser and raw.
+  `native.py` used to fall back to raw 6 + 7, the two ends of the gear lever,
+  which can't be held at once. It now picks 8 + 9 for PS3-style pads by name.
 
 Because Chromium loses L2/R2, the game server reads them itself: `GET
 /api/joystick` in `kit/server.py` streams the raw `js*` buttons, and `kit/input.js`
 maps the lever as `{ raw: 7 }` / `{ raw: 6 }`. See `KNOWN_WHEELS` in `kit/input.js`.
 Wheel setup in the parent settings can record the lever too (button, axis or raw).
 
+## SuperTuxKart bindings
+
+SuperTuxKart numbers this wheel's buttons the raw way. Its defaults put
+accelerate on 2 (triangle) and look back on 0, so the gas pedal changed the
+camera. `~/.config/supertuxkart/config-0.10/input.xml` now has, for
+`SHANWAN PS3 GamePad`: accel = button 0 (gas pedal), brake = button 3 (brake
+pedal), lookBack = button 2 (triangle). The original is kept next to it as
+`input.xml.before-pedals`. SuperTuxKart rewrites this file when it quits, so
+only edit it while it isn't running.
+
 ## Still to find out
 
-- **Pedals.** Not seen yet. If they're plugged in, press them while running
-  `evtest` and see whether they show up on `ABS_RX`/`ABS_RY` or elsewhere. The
-  game's default pedals (standard buttons 6/7) won't work on this wheel, so
-  pedals mode needs Wheel setup or a mapping, once we know where the pedals are.
 - **Rumble.** Chromium offers `vibrationActuator`, but we haven't felt it rumble yet.
 - **Modes.** What holding MODE does, and whether another mode avoids the Chromium
   problem altogether.

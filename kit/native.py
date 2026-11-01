@@ -19,6 +19,7 @@ The game server runs as a background service without the desktop's display
 variables, so kiosk.sh saves them to <data>/session.env and they are loaded here.
 """
 
+import fcntl
 import json
 import os
 import random
@@ -39,6 +40,22 @@ PARENT_HOLD_SECONDS = 5
 JS_EVENT = struct.Struct("IhBB")  # time, value, type, number (linux/joystick.h)
 JS_EVENT_BUTTON = 0x01
 INPUT_DIR = Path(os.environ.get("GRASSNYER_INPUT_DIR", "/dev/input"))  # tests point this elsewhere
+
+
+def joystick_name(fd):
+    try:
+        buf = bytearray(128)
+        fcntl.ioctl(fd, 0x80006A13 | (len(buf) << 16), buf)  # JSIOCGNAME
+        return buf.split(b"\0", 1)[0].decode(errors="replace")
+    except OSError:
+        return ""
+
+
+def default_parent_buttons(name):
+    """Before Wheel setup has been run: select + start. Their raw numbers
+    depend on the driver: 8 and 9 on PS3-style pads (the "SHANWAN PS3
+    GamePad" wheel, whose 6 and 7 are its gear lever), 6 and 7 with xpad."""
+    return [8, 9] if "PS3" in name else [6, 7]
 
 
 def load_json(path, default):
@@ -83,6 +100,7 @@ def watch_parent_buttons(proc, buttons, log):
     """Closes the game when both parent buttons are held for 5 seconds."""
     fds = {}
     pressed = {}
+    need = {}   # device -> the two buttons to hold
     held_since = None
     last_scan = 0
     while proc.poll() is None:
@@ -94,6 +112,7 @@ def watch_parent_buttons(proc, buttons, log):
                     try:
                         fds[str(dev)] = os.open(dev, os.O_RDONLY | os.O_NONBLOCK)
                         pressed[str(dev)] = set()
+                        need[str(dev)] = buttons or default_parent_buttons(joystick_name(fds[str(dev)]))
                     except OSError:
                         pass
         if fds:
@@ -119,7 +138,7 @@ def watch_parent_buttons(proc, buttons, log):
                 _, value, etype, number = JS_EVENT.unpack_from(data, off)
                 if etype & JS_EVENT_BUTTON:
                     (pressed[name].add if value else pressed[name].discard)(number)
-        combo = any(all(b in p for b in buttons) for p in pressed.values())
+        combo = any(all(b in p for b in need.get(name, [])) for name, p in pressed.items())
         if combo:
             held_since = held_since or time.monotonic()
             if time.monotonic() - held_since >= PARENT_HOLD_SECONDS:
@@ -139,7 +158,7 @@ def main():
     if not native:
         sys.exit(f"{gid} is not a native game")
     settings = load_json(DATA / "settings.json", {})
-    buttons = (settings.get("wheel") or {}).get("parentButtons") or [6, 7]
+    buttons = (settings.get("wheel") or {}).get("parentButtons")   # None: pick per wheel
     exit_re = re.compile(native["exitOnLog"]) if native.get("exitOnLog") else None
 
     DATA.mkdir(parents=True, exist_ok=True)
