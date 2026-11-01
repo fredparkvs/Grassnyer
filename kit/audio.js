@@ -178,6 +178,11 @@ export class Sound {
     this._tone(900, t + 0.02, 0.04, { type: 'square', vol: 0.05 });
   }
 
+  // a bonus present floating down: slide whistle
+  sfx_whistle(t) {
+    this._tone(1500, t, 0.9, { type: 'sine', vol: 0.13, slideTo: 520, attack: 0.03 });
+  }
+
   // one count of the back-to-the-start countdown: a wood-block tock
   sfx_tick(t) {
     this._tone(1320, t, 0.12, { type: 'triangle', vol: 0.18, slideTo: 990 });

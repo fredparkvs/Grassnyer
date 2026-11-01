@@ -55,6 +55,19 @@ export class Hud {
 
   setGifts(n) { this.gifts.forEach((g, i) => g.classList.toggle('found', i < n)); }
 
+  // bonus presents found join the row, in their wrapping colour (up to 9 fit)
+  addBonusGift(colour) {
+    const row = this.q('.gifts');
+    if (row.querySelectorAll('.bonus').length >= 9) return;
+    const el = document.createElement('span');
+    el.className = 'gift found bonus';
+    el.style.color = hex(colour);
+    el.innerHTML = SVG.gift;
+    row.appendChild(el);
+  }
+
+  clearBonusGifts() { this.root.querySelectorAll('.gift.bonus').forEach((el) => el.remove()); }
+
   setLight(visible, going) {
     this.show('.light', visible);
     this.q('.light').classList.toggle('going', going);

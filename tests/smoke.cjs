@@ -158,6 +158,38 @@ async function main() {
     writer.kill();
     await G(`import('/kit/settings.js').then((s) => s.updateSettings({ wheel: null }))`);
 
+    // ---- surprises: lots of kinds, and every one fits both vehicles ----
+    const pool = await G(`Promise.all([import('/games/mower/js/decorations.js'), import('/games/mower/js/vehicle.js')]).then(([D, V]) => {
+      const bad = [];
+      for (const type of ['mower', 'tractor']) for (const item of D.POOL) {
+        try { const v = new V.Vehicle(type, 0); v.setDecoration(item, false); v.update(0.016, 1.3); } catch (e) { bad.push(type + ' ' + item.id + ': ' + e.message); }
+      }
+      return { count: D.POOL.length, bad };
+    })`);
+    check('lots of kinds of surprises in presents (60+)', pool.count >= 60, String(pool.count));
+    check('every surprise fits both vehicles without errors', pool.bad.length === 0, pool.bad.slice(0, 3).join('; '));
+
+    // ---- a bonus present floats down, lands and can be picked up ----
+    await G('__grassnyer.place(3, 3, Math.PI)');
+    await G('__grassnyer.dropGift()');
+    let bonus = await G('__grassnyer.bonusPresents');
+    check('a bonus present floats down', bonus.length === 1 && bonus[0].falling, JSON.stringify(bonus));
+    await shot('04d-bonus-falling');
+    await G('__press(0, true)'); await sleep(250); await G('__press(0, false)');   // stop and watch it land
+    for (const end = Date.now() + 20000; Date.now() < end && (await G('__grassnyer.bonusPresents'))[0].falling; ) await sleep(250);
+    bonus = await G('__grassnyer.bonusPresents');
+    check('it lands on the lawn', !bonus[0].falling, JSON.stringify(bonus[0]));
+    await G(`__grassnyer.place(${bonus[0].x}, ${bonus[0].z + 0.2}, Math.PI)`);
+    await until(() => window.__grassnyer.bonusFound > 0, 8000).catch(() => {});
+    check('driving over it opens it', (await G('__grassnyer.bonusFound')) === 1, String(await G('__grassnyer.bonusFound')));
+    await G('__press(0, true)'); await sleep(250); await G('__press(0, false)');   // and go again
+    // a magic trail present scatters sparkles behind the moving vehicle
+    await G("__grassnyer.give('trail-sparkles')");
+    await G('__grassnyer.place(3, 4, Math.PI)');
+    for (let i = 0; i < 4; i++) await tap(5);
+    check('a magic trail goes on the vehicle', (await G('__grassnyer.trail')) === 'trail-sparkles');
+    await shot('04e-trail');
+
     // ---- the chow chow: on the lawn, and runs off when the tractor comes ----
     let dog = await G('__grassnyer.dog');
     const LB = await G('__grassnyer.bounds');

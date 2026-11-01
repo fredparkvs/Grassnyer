@@ -108,11 +108,17 @@ Bumping into anything gives a soft "boing" and a gentle bounce back (plus vibrat
 ## 8. Presents and decorations
 
 - Each lawn hides 3 wrapped presents in the tall grass. When one is mowed it pops open, and an item flies onto the vehicle with a sparkle sound.
-- **Pool:** about 25 purely visual items:
-  - **Vinyls:** flames, stars, racing stripes, flowers, lightning bolts, a rainbow, a dinosaur, a big number.
-  - **Lights:** headlights, a flashing orange roof beacon, a light bar, underglow, fairy lights.
-  - **Add-ons:** a flag on a pole, shiny hubcaps, a chrome exhaust stack, hats for the driver.
-- Each item has a spot on the vehicle (side, bonnet, roof, lights, wheels, driver's hat). A new find replaces whatever is in that spot.
+- **Bonus presents** (added 2026-11-01 at the parent's request): every 25 to 35 seconds of play, a present floats down on a little parachute, with a slide whistle, somewhere ahead of the vehicle. It lands with a puff of confetti, then bounces and sparkles until it's driven over. Each one found joins the gift row at the top in its wrapping colour (up to 9 extra). At most 3 wait on the lawn at once.
+- Presents come in different wrappings: 8 colours, 4 ribbon colours, and 4 shapes (cube, tall, flat, round hatbox). The 3 hidden ones keep the pink, blue and yellow that match the gift row.
+- **Pool:** 69 purely visual items (grown from about 25 on 2026-11-01, at the parent's request):
+  - **Vinyls:** flames, stars, racing stripes, flowers, lightning bolts, a rainbow, a dinosaur, a big number, hearts, polka dots, paw prints, butterflies, checkers, music notes, a sun, a moon, a ladybird, a chequered flag.
+  - **Lights:** headlights, a flashing orange roof beacon, a light bar, underglow, fairy lights, rainbow party lights, twinkling stars.
+  - **Roof:** a flag on a pole, a chrome exhaust stack, a bunch of balloons, a pinwheel, a striped parasol, a disco ball, a helicopter rotor, a rainbow arch.
+  - **Hubcaps:** chrome, gold, rainbow, flower, star, lollipop swirl, football.
+  - **Driver's hats:** cowboy, crown, cap, party, pirate, wizard, chef, viking, top hat, propeller beanie, bunny ears, flower crown, astronaut bubble.
+  - **Pets riding on the bonnet:** duck, chick, kitten, bunny, frog, penguin, teddy, and a mini chow chow puppy. They hop, waddle and look around.
+  - **Magic trails** behind the moving vehicle: bubbles, sparkles, flower petals, a rainbow, confetti.
+- Each item has a spot on the vehicle (side, bonnet, roof, lights, wheels, driver's hat, pet, trail). A new find replaces whatever is in that spot.
 - Decorations are shared between the mower and the tractor.
 - The vehicle starts plain at the start of every play session (see [Q37]), and decorations build up across lawns within a session.
 - Once the whole pool has been found in a session, presents shuffle the look instead.

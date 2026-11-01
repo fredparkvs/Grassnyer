@@ -16,6 +16,7 @@ import { Garage } from './garage.js';
 import { Hud } from './hud.js';
 import { Particles, Hints, CLIPPING_COLOURS, CONFETTI_COLOURS } from './effects.js';
 import { pickDecoration } from './decorations.js';
+import * as DECOR from './decorations.js';
 import * as M from './models.js';
 import { Dog } from './dog.js';
 
@@ -30,6 +31,9 @@ const T = {
   bumpHop: 5,                          // bumps in the same spot in a row before hopping away
   finishAt: 0.8,                       // lawn counts as done at 80% (was 95%; lowered at the parent's request)
   presents: 3,
+  giftFirst: num('giftFirst', 20),     // seconds into a lawn before the first bonus present floats down...
+  giftEvery: num('giftEvery', 30),     // ...then about this often (give or take a fifth)
+  giftMax: 3,                          // bonus presents waiting on the lawn at once
 };
 const SCALES = [1, 0.85, 0.72, 0.6, 0.5];
 
@@ -65,7 +69,11 @@ const clippings = new Particles(500, { size: 0.13, gravity: -9, drag: 1.5 });
 const confetti = new Particles(600, { size: 0.22, gravity: -2.5, drag: 1.2 });
 const paintFx = new Particles(150, { size: 0.18, gravity: -7, drag: 1.0 });
 const hints = new Hints();
-scene.add(clippings.points, confetti.points, paintFx.points, hints.group);
+// magic trails from presents: floating bubbles, twinkly stars, falling petals and confetti
+const trailUp = new Particles(200, { size: 0.26, gravity: 1.3, drag: 1.4 });
+const trailStars = new Particles(300, { size: 0.24, gravity: -0.3, drag: 1.5, star: true, additive: true });
+const trailFall = new Particles(300, { size: 0.15, gravity: -1.5, drag: 2.0 });
+scene.add(clippings.points, confetti.points, paintFx.points, hints.group, trailUp.points, trailStars.points, trailFall.points);
 const flyer = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8), M.glow(0xfff2a0));
 flyer.visible = false;
 scene.add(flyer);
@@ -78,6 +86,11 @@ const garage = new Garage({ wheel, sound, hud });
 let state = 'boot';
 let world = null, vehicle = null, pile = null;
 let presents = [], giftsFound = 0, currentLawn = 0;
+let bonusFound = 0, bonusIn = 0, trailAcc = 0, trailN = 0;
+const WRAPS = [0xff4f8b, 0x3fa8ff, 0xffd21f, 0x8e4fe0, 0x2fb84a, 0xff8a1f, 0x2fd0c8, 0xe8352f];
+const RIBBONS = [0xffffff, 0xffd21f, 0xe8352f, 0x2f5fe8];
+const SHAPES = ['cube', 'cube', 'tall', 'wide', 'round'];
+const pick = (list) => list[(Math.random() * list.length) | 0];
 let going = true, idleStopped = false, cuttingLevel = 0;
 let gear = 1, beepIn = 0;          // gear lever: 1 forward, -1 reverse
 const REVERSE_SPEED = 0.5;         // reversing is slower than driving forward
@@ -176,7 +189,10 @@ async function startLawn(index) {
   countdown = 0; bumps = []; hopping = false;
   hud.setCountdown(null);
   idleStopped = false;
-  clippings.clear(); confetti.clear(); paintFx.clear();
+  clippings.clear(); confetti.clear(); paintFx.clear(); trailUp.clear(); trailStars.clear(); trailFall.clear();
+  bonusFound = 0;
+  bonusIn = T.giftFirst;
+  hud.clearBonusGifts();
   camMode = 'follow';
   camHeading = vehicle.heading;
   placeCamera(1);
@@ -200,7 +216,7 @@ function spawnPresents() {
     if (!g.isMowable(x, z, 0.9)) continue;
     if (Math.hypot(x - world.start.x, z - world.start.z) < 4) continue;
     if (presents.some((p) => Math.hypot(p.x - x, p.z - z) < 4)) continue;
-    const obj = M.present(colours[presents.length]);
+    const obj = M.present(colours[presents.length], { shape: pick(SHAPES), ribbon: pick([0xffffff, 0xffffff, 0xffd21f]) });
     obj.position.set(x, 0, z);
     obj.rotation.y = Math.random() * 6;
     scene.add(obj);
@@ -355,10 +371,13 @@ function updatePlay(dt) {
   vehicle.fill = Math.min(1, progress / T.finishAt);   // catcher is full when the lawn is done
   hud.setProgress(progress / T.finishAt);
 
+  updateBonusPresents(dt);
   for (const p of presents) {
-    if (!p.found && Math.hypot(p.x - vehicle.x, p.z - vehicle.z) < CUT_RADIUS + 0.15) openPresent(p);
-    if (!p.found) p.obj.rotation.y += dt * 0.6;
+    if (p.found || p.falling) continue;
+    if (Math.hypot(p.x - vehicle.x, p.z - vehicle.z) < CUT_RADIUS + (p.bonus ? 0.35 : 0.15)) openPresent(p);
+    else p.obj.rotation.y += dt * (p.bonus ? 1.2 : 0.6);
   }
+  emitTrail(dt);
 
   updateHints(progress);
   if (progress >= T.finishAt) celebrate();
@@ -391,11 +410,88 @@ function paint() {
   paintFx.burst(vehicle.x, 1.3, vehicle.z, 40, 3, [M.PAINT[gs.colour], 0xffffff], 1.2);
 }
 
+// ---- bonus presents: one floats down on a parachute every so often -----------------------
+const DROP_HEIGHT = 9, DROP_TIME = 3.2;
+
+function updateBonusPresents(dt) {
+  bonusIn -= dt;
+  if (bonusIn <= 0) {
+    bonusIn = T.giftEvery * (0.8 + Math.random() * 0.4);
+    if (presents.filter((p) => p.bonus && !p.found).length < T.giftMax) dropBonusPresent();
+  }
+  for (const p of presents) {
+    if (!p.bonus || p.found) continue;
+    if (p.falling) {
+      p.t += dt;
+      const k = Math.min(1, p.t / DROP_TIME);
+      p.obj.position.set(p.x + Math.sin(p.t * 2.2) * 0.5 * (1 - k), DROP_HEIGHT * (1 - k), p.z);
+      p.obj.rotation.z = Math.sin(p.t * 2.2) * 0.18 * (1 - k);
+      if (k >= 1) {
+        p.falling = false;
+        p.obj.remove(p.chute);
+        p.obj.rotation.z = 0;
+        sound.play('land');
+        confetti.burst(p.x, 0.4, p.z, 24, 2, CONFETTI_COLOURS, 1.0, 1);
+      }
+    } else {
+      p.obj.position.y = Math.abs(Math.sin(simT * 3 + p.x)) * 0.25;   // bouncing: here I am!
+      if (Math.random() < dt * 5) trailStars.emit(p.x + (Math.random() - 0.5) * 0.6, 0.9, p.z + (Math.random() - 0.5) * 0.6, 0, 0.7, 0, 0.8, 0xffe36b);
+    }
+  }
+}
+
+// open lawn somewhere ahead of the vehicle, not too far, not too near
+function dropSpot() {
+  const { circles, boxes, bounds: B } = world.colliders;
+  const open = (x, z) => x > B.minX + 1.2 && x < B.maxX - 1.2 && z > B.minZ + 1.2 && z < B.maxZ - 1.2
+    && circles.every((c) => Math.hypot(x - c.x, z - c.z) > c.r + 1)
+    && boxes.every((b) => Math.abs(x - b.x) > b.hw + 1 || Math.abs(z - b.z) > b.hd + 1)
+    && presents.every((p) => p.found || Math.hypot(p.x - x, p.z - z) > 2.5);
+  for (let i = 0; i < 80; i++) {
+    const spread = i < 40 ? Math.PI / 2 : Math.PI;   // prefer in front
+    const a = vehicle.heading + (Math.random() - 0.5) * 2 * spread;
+    const d = 4.5 + Math.random() * 6.5;
+    const x = vehicle.x + Math.sin(a) * d, z = vehicle.z + Math.cos(a) * d;
+    if (open(x, z)) return { x, z };
+  }
+  return null;
+}
+
+function dropBonusPresent() {
+  const spot = dropSpot();
+  if (!spot) return;
+  const colour = pick(WRAPS);
+  const obj = M.present(colour, { shape: pick(SHAPES), ribbon: pick(RIBBONS.filter((r) => r !== colour)) });
+  obj.scale.setScalar(1.25);
+  const chute = M.parachute(pick(WRAPS));
+  obj.add(chute);
+  obj.position.set(spot.x, DROP_HEIGHT, spot.z);
+  scene.add(obj);
+  presents.push({ x: spot.x, z: spot.z, obj, chute, colour, found: false, bonus: true, falling: true, t: 0 });
+  sound.play('whistle');
+}
+
+// the magic trail present: scatter it behind the moving vehicle
+function emitTrail(dt) {
+  const tr = vehicle.decor.trail?.trail;
+  if (!tr || Math.abs(vehicle.speed) < 0.5) return;
+  trailAcc += dt * tr.rate;
+  const sys = tr.kind === 'up' ? trailUp : tr.kind === 'stars' ? trailStars : trailFall;
+  const fx = Math.sin(vehicle.heading), fz = Math.cos(vehicle.heading), back = vehicle.speed > 0 ? -1.1 : 1.1;
+  const [rx, rz] = rightOf(vehicle.heading);
+  for (; trailAcc >= 1; trailAcc--) {
+    const side = (Math.random() - 0.5) * 0.9;
+    const colour = tr.inOrder ? tr.colours[trailN++ % tr.colours.length] : pick(tr.colours);
+    sys.emit(vehicle.x + fx * back + rx * side, 0.45 + Math.random() * 0.6, vehicle.z + fz * back + rz * side,
+      (Math.random() - 0.5) * 0.6, tr.kind === 'fall' ? 1.4 : 0.5, (Math.random() - 0.5) * 0.6, 1.6 + Math.random() * 0.8, colour);
+  }
+}
+
 function openPresent(p) {
   p.found = true;
   scene.remove(p.obj);
-  giftsFound++;
-  hud.setGifts(giftsFound);
+  if (p.bonus) { bonusFound++; hud.addBonusGift(p.colour); }
+  else { giftsFound++; hud.setGifts(giftsFound); }
   sound.play('pop');
   confetti.burst(p.x, 0.5, p.z, 60, 3, CONFETTI_COLOURS, 1.6, 1.4);
   const item = pickDecoration(session.found, vehicle.decorationIds());
@@ -614,6 +710,7 @@ function frame(now) {
     world.grass.update(simT);
     clippings.update(dt);
     confetti.update(dt);
+    trailUp.update(dt); trailStars.update(dt); trailFall.update(dt);
     paintFx.update(dt);
     hints.update(simT, vehicle);
     placeCamera(1 - Math.exp(-dt * 3));
@@ -661,7 +758,12 @@ window.__grassnyer = {
   get progress() { return world ? world.grass.progress : 0; },
   get fps() { return fps; },
   get gifts() { return giftsFound; },
-  get presents() { return presents.map((p) => ({ x: p.x, z: p.z, found: p.found })); },
+  get presents() { return presents.filter((p) => !p.bonus).map((p) => ({ x: p.x, z: p.z, found: p.found })); },
+  get bonusPresents() { return presents.filter((p) => p.bonus).map((p) => ({ x: p.x, z: p.z, found: p.found, falling: p.falling })); },
+  get bonusFound() { return bonusFound; },
+  dropGift() { dropBonusPresent(); },
+  get trail() { return vehicle && vehicle.decor.trail ? vehicle.decor.trail.id : null; },
+  give(id) { const d = DECOR.BY_ID[id]; if (d) vehicle.setDecoration(d, false); },
   get vehicle() {
     return vehicle && { x: vehicle.x, z: vehicle.z, heading: vehicle.heading, speed: vehicle.speed,
       type: vehicle.type, colour: vehicle.colour, decorations: vehicle.decorationIds() };

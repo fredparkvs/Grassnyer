@@ -14,6 +14,7 @@
 .gift.found:nth-child(2) { color: #3fa8ff; }
 .gift.found:nth-child(3) { color: #ffd21f; }
 @keyframes giftpop { 50% { transform: scale(1.6); } }
+.gift.bonus { width: 4vh; height: 4vh; align-self: center; }
 
 .light { position: absolute; left: 2.5vw; bottom: 4vh; display: flex; flex-direction: column; gap: 0.8vh; padding: 1vh; border-radius: 2vh; background: #333; }
 .light i { width: 5vh; height: 5vh; border-radius: 50%; background: #5a1d1d; }

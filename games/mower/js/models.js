@@ -386,19 +386,49 @@ export function stones(w, d) {
   return g;
 }
 
-export function present(colour) {
+// A wrapped present. shape: 'cube', 'tall', 'wide' or 'round' (a hatbox).
+export function present(colour, { ribbon = C.white, shape = 'cube' } = {}) {
   const g = new THREE.Group();
-  const b = rbox(0.42, 0.38, 0.42, 0.04, mat(colour));
-  b.position.y = 0.19;
-  g.add(b);
-  g.add(at(box(0.44, 0.4, 0.08, mat(C.white)), 0, 0.19, 0));
-  g.add(at(box(0.08, 0.4, 0.44, mat(C.white)), 0, 0.19, 0));
+  const rib = mat(ribbon);
+  let top;
+  if (shape === 'round') {
+    g.add(at(cyl(0.24, 0.24, 0.3, mat(colour), 16), 0, 0.15, 0));
+    g.add(at(cyl(0.256, 0.256, 0.08, mat(colour), 16), 0, 0.31, 0));   // lid
+    g.add(at(cyl(0.245, 0.245, 0.06, rib, 16), 0, 0.17, 0));
+    top = 0.35;
+  } else {
+    const [w, h, d] = shape === 'tall' ? [0.34, 0.6, 0.34] : shape === 'wide' ? [0.62, 0.26, 0.48] : [0.42, 0.38, 0.42];
+    g.add(at(rbox(w, h, d, 0.04, mat(colour)), 0, h / 2, 0));
+    g.add(at(box(w + 0.02, h + 0.02, 0.08, rib), 0, h / 2, 0));
+    g.add(at(box(0.08, h + 0.02, d + 0.02, rib), 0, h / 2, 0));
+    top = h;
+  }
   for (const s of [-1, 1]) {
-    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.03, 6, 10), mat(C.white));
-    bow.position.set(s * 0.07, 0.43, 0);
+    const bow = new THREE.Mesh(cached('bow', () => new THREE.TorusGeometry(0.08, 0.03, 6, 10)), rib);
+    bow.position.set(s * 0.07, top + 0.05, 0);
     bow.rotation.y = s * 0.6;
     g.add(bow);
   }
+  return g;
+}
+
+// A little striped parachute that bonus presents float down on.
+export function parachute(colour) {
+  const g = new THREE.Group();
+  const segs = 8;
+  for (let i = 0; i < segs; i++) {   // alternating panels
+    const geo = cached(`chute${i}`, () => new THREE.SphereGeometry(0.6, 3, 6, (i / segs) * Math.PI * 2, (Math.PI * 2) / segs, 0, Math.PI / 2));
+    const panel = new THREE.Mesh(geo, mat(i % 2 ? C.white : colour, { side: THREE.DoubleSide }));
+    panel.scale.y = 0.55;
+    panel.position.y = 1.15;
+    g.add(panel);
+  }
+  const pts = [];
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    pts.push(new THREE.Vector3(Math.cos(a) * 0.55, 1.15, Math.sin(a) * 0.55), new THREE.Vector3(0, 0.42, 0));
+  }
+  g.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x555555 })));
   return g;
 }
 

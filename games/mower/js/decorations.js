@@ -2,9 +2,9 @@
 // vehicle; a new find replaces whatever is in that spot.
 
 import * as THREE from 'three';
-import { mat, glow, rbox, box, cyl, ball, at } from './models.js';
+import { mat, glow, rbox, box, cyl, ball, blob, at, C, chowChow } from './models.js';
 
-export const SLOTS = ['side', 'bonnet', 'roof', 'lights', 'wheels', 'hat'];
+export const SLOTS = ['side', 'bonnet', 'roof', 'lights', 'wheels', 'hat', 'pet', 'trail'];
 
 // ---- canvas helpers ---------------------------------------------------------
 function canvasTex(w, h, draw) {
@@ -34,6 +34,47 @@ function star(g, x, y, r, fill, stroke = '#222') {
   g.lineWidth = r * 0.12;
   g.strokeStyle = stroke;
   g.stroke();
+}
+
+function heartPath(g, x, y, s) {   // heart centred on x, top at y, about 2s wide
+  g.beginPath();
+  g.moveTo(x, y + s * 0.3);
+  g.bezierCurveTo(x, y, x - s, y - s * 0.4, x - s, y + s * 0.35);
+  g.bezierCurveTo(x - s, y + s * 0.9, x, y + s * 1.2, x, y + s * 1.5);
+  g.bezierCurveTo(x, y + s * 1.2, x + s, y + s * 0.9, x + s, y + s * 0.35);
+  g.bezierCurveTo(x + s, y - s * 0.4, x, y, x, y + s * 0.3);
+}
+
+function paw(g, x, y, s, fill, rot = 0) {
+  g.save(); g.translate(x, y); g.rotate(rot);
+  g.fillStyle = fill;
+  g.beginPath(); g.ellipse(0, s * 0.25, s * 0.42, s * 0.34, 0, 0, 7); g.fill();
+  for (const [tx, ty] of [[-0.42, -0.2], [-0.15, -0.45], [0.15, -0.45], [0.42, -0.2]]) {
+    g.beginPath(); g.ellipse(tx * s, ty * s, s * 0.15, s * 0.19, 0, 0, 7); g.fill();
+  }
+  g.restore();
+}
+
+function butterfly(g, x, y, s, [wing, spot]) {
+  g.save(); g.translate(x, y);
+  g.lineWidth = s * 0.06; g.strokeStyle = '#222';
+  for (const side of [-1, 1]) {
+    g.fillStyle = wing;
+    g.beginPath(); g.ellipse(side * s * 0.42, -s * 0.18, s * 0.42, s * 0.32, side * 0.5, 0, 7); g.fill(); g.stroke();
+    g.beginPath(); g.ellipse(side * s * 0.3, s * 0.3, s * 0.28, s * 0.22, -side * 0.5, 0, 7); g.fill(); g.stroke();
+    g.fillStyle = spot;
+    g.beginPath(); g.arc(side * s * 0.45, -s * 0.2, s * 0.11, 0, 7); g.fill();
+    g.beginPath(); g.moveTo(0, -s * 0.4); g.quadraticCurveTo(side * s * 0.15, -s * 0.75, side * s * 0.28, -s * 0.78); g.stroke();
+  }
+  g.fillStyle = '#222';
+  g.beginPath(); g.ellipse(0, 0, s * 0.08, s * 0.45, 0, 0, 7); g.fill();
+  g.restore();
+}
+
+function note(g, x, y, s, fill) {   // a quaver
+  g.fillStyle = fill; g.strokeStyle = fill; g.lineWidth = s * 0.1;
+  g.beginPath(); g.ellipse(x, y + s * 0.8, s * 0.24, s * 0.17, -0.4, 0, 7); g.fill();
+  g.beginPath(); g.moveTo(x + s * 0.2, y + s * 0.75); g.lineTo(x + s * 0.2, y); g.quadraticCurveTo(x + s * 0.5, y + s * 0.2, x + s * 0.45, y + s * 0.45); g.stroke();
 }
 
 let haloTex = null;
@@ -147,6 +188,42 @@ const SIDE_ART = {
     const cols = ['#ffd21f', '#ffffff', '#ff6fb5', '#5ab8ff'];
     for (let i = 0; i < 6; i++) star(g, w * (0.1 + i * 0.16), h * (i % 2 ? 0.35 : 0.65), h * (0.2 + (i % 3) * 0.05), cols[i % 4]);
   },
+  hearts(g, w, h) {
+    const cols = ['#ff4f8b', '#ff8ac2', '#e8352f'];
+    for (let i = 0; i < 7; i++) {
+      heartPath(g, w * (0.07 + i * 0.143), h * (i % 2 ? 0.12 : 0.42), h * (0.17 + (i % 3) * 0.03));
+      g.fillStyle = cols[i % 3]; g.fill();
+      g.lineWidth = 4; g.strokeStyle = '#222'; g.stroke();
+    }
+  },
+  polka(g, w, h) {
+    const cols = ['#ffffff', '#ffd21f', '#5ab8ff', '#ff6fb5'];
+    let n = 0;
+    for (let row = 0; row < 3; row++) {
+      for (let x = (row % 2) * w * 0.06 + w * 0.04; x < w; x += w * 0.12) {
+        g.beginPath(); g.arc(x, h * (0.2 + row * 0.3), h * 0.11, 0, 7);
+        g.fillStyle = cols[n++ % cols.length]; g.fill();
+      }
+    }
+  },
+  paws(g, w, h) {
+    for (let i = 0; i < 6; i++) paw(g, w * (0.09 + i * 0.165), h * (i % 2 ? 0.34 : 0.66), h * 0.24, '#6b4423', 1.57);
+  },
+  butterflies(g, w, h) {
+    const cols = [['#ff6fb5', '#ffd21f'], ['#5ab8ff', '#ffffff'], ['#ff8a1f', '#8e4fe0']];
+    for (let i = 0; i < 4; i++) butterfly(g, w * (0.13 + i * 0.25), h * (i % 2 ? 0.42 : 0.58), h * 0.3, cols[i % 3]);
+  },
+  checkers(g, w, h) {
+    const s = h / 4;
+    for (let y = 0; y < 2; y++) for (let x = 0; x * s < w; x++) {
+      g.fillStyle = (x + y) % 2 ? '#111111' : '#ffffff';
+      g.fillRect(x * s, h * 0.5 - s + y * s, s, s);
+    }
+  },
+  music(g, w, h) {
+    const cols = ['#8e4fe0', '#2f7fe8', '#e8352f', '#2fb84a'];
+    for (let i = 0; i < 6; i++) note(g, w * (0.08 + i * 0.155), h * (i % 2 ? 0.08 : 0.3), h * 0.55, cols[i % 4]);
+  },
 };
 
 const BONNET_ART = {
@@ -183,6 +260,41 @@ const BONNET_ART = {
     g.bezierCurveTo(x + s, y - s * 0.4, x, y, x, y + s * 0.3);
     g.fillStyle = '#ff4f8b'; g.fill();
     g.lineWidth = 9; g.strokeStyle = '#222'; g.stroke();
+  },
+  sun(g, w, h) {
+    const x = w / 2, y = h / 2;
+    g.strokeStyle = '#ff8a1f'; g.lineWidth = 14;
+    for (let i = 0; i < 12; i++) {
+      const a = (i * Math.PI) / 6;
+      g.beginPath(); g.moveTo(x + Math.cos(a) * h * 0.3, y + Math.sin(a) * h * 0.3); g.lineTo(x + Math.cos(a) * h * 0.45, y + Math.sin(a) * h * 0.45); g.stroke();
+    }
+    g.beginPath(); g.arc(x, y, h * 0.25, 0, 7); g.fillStyle = '#ffd21f'; g.fill();
+    g.lineWidth = 8; g.strokeStyle = '#e08a00'; g.stroke();
+  },
+  paw(g, w, h) { paw(g, w / 2, h * 0.55, h * 0.4, '#6b4423'); },
+  moon(g, w, h) {
+    g.fillStyle = '#ffe98a';
+    g.beginPath(); g.arc(w * 0.45, h * 0.5, h * 0.32, 0, 7); g.fill();
+    g.globalCompositeOperation = 'destination-out';
+    g.beginPath(); g.arc(w * 0.58, h * 0.42, h * 0.28, 0, 7); g.fill();
+    g.globalCompositeOperation = 'source-over';
+    star(g, w * 0.75, h * 0.25, h * 0.09, '#ffffff', '#ffffff');
+    star(g, w * 0.8, h * 0.65, h * 0.07, '#ffffff', '#ffffff');
+  },
+  ladybird(g, w, h) {
+    const x = w / 2, y = h * 0.55;
+    g.fillStyle = '#222'; g.beginPath(); g.arc(x, y - h * 0.3, h * 0.13, 0, 7); g.fill();
+    g.fillStyle = '#e8352f'; g.beginPath(); g.arc(x, y, h * 0.32, 0, 7); g.fill();
+    g.lineWidth = 7; g.strokeStyle = '#222'; g.stroke();
+    g.beginPath(); g.moveTo(x, y - h * 0.32); g.lineTo(x, y + h * 0.32); g.stroke();
+    g.fillStyle = '#222';
+    for (const [dx, dy] of [[-0.15, -0.12], [0.15, -0.12], [-0.17, 0.1], [0.17, 0.1], [-0.08, 0.22], [0.08, 0.22]]) {
+      g.beginPath(); g.arc(x + dx * h, y + dy * h, h * 0.05, 0, 7); g.fill();
+    }
+  },
+  chequered(g, w, h) {
+    const n = 6, s = w / n;
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { g.fillStyle = (x + y) % 2 ? '#111111' : '#ffffff'; g.fillRect(x * s, y * s, s, s); }
   },
 };
 
@@ -377,15 +489,50 @@ function exhaust(v) {
 }
 
 // ---- hubcaps --------------------------------------------------------------------
+const HUB_ART = {
+  rainbow(g, r) {
+    const cols = ['#e8352f', '#ff8a1f', '#ffd21f', '#2fb84a', '#2f7fe8', '#8e4fe0'];
+    cols.forEach((c, i) => {
+      g.beginPath(); g.moveTo(r, r); g.arc(r, r, r - 2, (i * Math.PI) / 3, ((i + 1) * Math.PI) / 3); g.fillStyle = c; g.fill();
+    });
+  },
+  flower(g, r) {
+    g.fillStyle = '#7fd36b'; g.beginPath(); g.arc(r, r, r - 2, 0, 7); g.fill();
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3;
+      g.fillStyle = i % 2 ? '#ffffff' : '#ff6fb5';
+      g.beginPath(); g.ellipse(r + Math.cos(a) * r * 0.45, r + Math.sin(a) * r * 0.45, r * 0.3, r * 0.17, a, 0, 7); g.fill();
+    }
+    g.fillStyle = '#ffd21f'; g.beginPath(); g.arc(r, r, r * 0.28, 0, 7); g.fill();
+  },
+  star(g, r) {
+    g.fillStyle = '#2f5fe8'; g.beginPath(); g.arc(r, r, r - 2, 0, 7); g.fill();
+    star(g, r, r * 1.05, r * 0.8, '#ffd21f', '#ffd21f');
+  },
+  swirl(g, r) {
+    g.fillStyle = '#ffffff'; g.beginPath(); g.arc(r, r, r - 2, 0, 7); g.fill();
+    g.strokeStyle = '#e8352f'; g.lineWidth = r * 0.16;
+    g.beginPath();
+    for (let a = 0; a < Math.PI * 6; a += 0.1) g.lineTo(r + Math.cos(a) * (a / (Math.PI * 6)) * r * 0.9, r + Math.sin(a) * (a / (Math.PI * 6)) * r * 0.9);
+    g.stroke();
+  },
+  football(g, r) {
+    g.fillStyle = '#ffffff'; g.beginPath(); g.arc(r, r, r - 2, 0, 7); g.fill();
+    const pent = (cx, cy, s) => {
+      g.beginPath();
+      for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5; g.lineTo(cx + Math.cos(a) * s, cy + Math.sin(a) * s); }
+      g.closePath(); g.fillStyle = '#222'; g.fill();
+    };
+    pent(r, r, r * 0.3);
+    for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5 + Math.PI / 5; pent(r + Math.cos(a) * r * 0.82, r + Math.sin(a) * r * 0.82, r * 0.24); }
+  },
+};
 function hubcaps(style) {
   return (v) => {
     const tex = canvasTex(128, 128, (g, w) => {
       const r = w / 2;
-      if (style === 'rainbow') {
-        const cols = ['#e8352f', '#ff8a1f', '#ffd21f', '#2fb84a', '#2f7fe8', '#8e4fe0'];
-        cols.forEach((c, i) => {
-          g.beginPath(); g.moveTo(r, r); g.arc(r, r, r - 2, (i * Math.PI) / 3, ((i + 1) * Math.PI) / 3); g.fillStyle = c; g.fill();
-        });
+      if (HUB_ART[style]) {
+        HUB_ART[style](g, r);
       } else {
         const grd = g.createRadialGradient(r * 0.7, r * 0.6, 4, r, r, r);
         grd.addColorStop(0, '#ffffff');
@@ -421,7 +568,7 @@ function hat(build) {
     const h = build();
     h.position.y = 0.12;
     v.driver.hat.visible = false;
-    return { objects: [[v.driver.head, h]], onRemove: () => { v.driver.hat.visible = true; } };
+    return { objects: [[v.driver.head, h]], update: h.userData.update, onRemove: () => { v.driver.hat.visible = true; } };
   };
 }
 
@@ -470,7 +617,338 @@ const HATS = {
     g.add(at(ball(0.04, mat(0xffffff), 8), 0, 0.1, 0.16));
     return g;
   },
+  wizard() {
+    const g = new THREE.Group();
+    const tex = canvasTex(128, 128, (c, w, h) => {
+      c.fillStyle = '#5b3cc4'; c.fillRect(0, 0, w, h);
+      for (let i = 0; i < 9; i++) star(c, (i * 37 + 10) % w, (i * 53 + 20) % h, 9, '#ffd21f', '#ffd21f');
+    });
+    g.add(cyl(0.3, 0.3, 0.03, mat(0x5b3cc4), 18));
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.5, 14), new THREE.MeshLambertMaterial({ map: tex }));
+    cone.position.set(0.02, 0.26, 0);
+    cone.rotation.z = -0.12;
+    g.add(cone);
+    return g;
+  },
+  chef() {
+    const g = new THREE.Group();
+    g.add(at(cyl(0.17, 0.16, 0.16, mat(C.white), 14), 0, 0.06, 0));
+    for (const [x, z] of [[0, 0], [0.09, 0.05], [-0.09, 0.05], [0.05, -0.09], [-0.06, -0.08]]) g.add(at(blob(0.11, mat(C.white)), x, 0.2, z));
+    return g;
+  },
+  viking() {
+    const g = new THREE.Group();
+    const metal = new THREE.MeshPhongMaterial({ color: 0xb8c0c8, specular: 0xffffff, shininess: 50 });
+    g.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.19, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), metal), 0, -0.04, 0));
+    g.add(at(cyl(0.196, 0.196, 0.04, mat(0x8b5a2b), 14), 0, -0.03, 0));
+    for (const s of [-1, 1]) {
+      const horn = at(new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.26, 8), mat(0xf3ead2)), s * 0.22, 0.08, 0);
+      horn.rotation.z = -s * 0.9;
+      g.add(horn);
+    }
+    return g;
+  },
+  tophat() {
+    const g = new THREE.Group();
+    g.add(cyl(0.27, 0.27, 0.025, mat(0x1e1e22), 18));
+    g.add(at(cyl(0.15, 0.15, 0.34, mat(0x1e1e22), 16), 0, 0.17, 0));
+    g.add(at(cyl(0.153, 0.153, 0.06, mat(0xe8352f), 16), 0, 0.05, 0));
+    return g;
+  },
+  propeller() {
+    const g = new THREE.Group();
+    const tex = canvasTex(64, 32, (c) => { ['#e8352f', '#ffd21f', '#2fb84a', '#2f7fe8'].forEach((col, i) => { c.fillStyle = col; c.fillRect(i * 16, 0, 16, 32); }); });
+    g.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ map: tex })), 0, -0.04, 0));
+    g.add(at(cyl(0.012, 0.012, 0.1, mat(0x333333), 6), 0, 0.18, 0));
+    const prop = new THREE.Group();
+    prop.position.y = 0.23;
+    for (const s of [-1, 1]) {
+      const blade = at(rbox(0.22, 0.012, 0.06, 0.005, mat(s > 0 ? 0xe8352f : 0x2f7fe8)), s * 0.11, 0, 0);
+      blade.rotation.x = s * 0.3;
+      prop.add(blade);
+    }
+    g.add(prop);
+    g.userData.update = (t) => { prop.rotation.y = t * 14; };
+    return g;
+  },
+  bunny() {
+    const g = new THREE.Group();
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.016, 6, 18, Math.PI), mat(0xff6fb5));
+    band.position.y = -0.12;   // arcs over the head, ear to ear
+    g.add(band);
+    for (const s of [-1, 1]) {
+      const ear = new THREE.Group();
+      ear.position.set(s * 0.08, 0.04, 0);
+      ear.rotation.z = -s * 0.25;
+      const outer = at(ball(0.06, mat(C.white), 10), 0, 0.15, 0);
+      outer.scale.set(0.8, 2.6, 0.45);
+      const inner = at(ball(0.04, mat(0xffb3d1), 8), 0, 0.15, 0.02);
+      inner.scale.set(0.7, 2.4, 0.3);
+      ear.add(outer, inner);
+      g.add(ear);
+    }
+    return g;
+  },
+  flowers() {
+    const g = new THREE.Group();
+    const cols = [0xff6fb5, 0xffd21f, 0xffffff, 0xc56bff, 0xff8a1f];
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      g.add(at(ball(0.05, mat(cols[i % cols.length]), 8), Math.cos(a) * 0.165, -0.03, Math.sin(a) * 0.165));
+      g.add(at(ball(0.03, mat(0x3fae3a), 6), Math.cos(a + 0.31) * 0.17, -0.05, Math.sin(a + 0.31) * 0.17));
+    }
+    return g;
+  },
+  astronaut() {
+    const g = new THREE.Group();
+    const glass = new THREE.MeshPhongMaterial({ color: 0xbfe6ff, transparent: true, opacity: 0.3, shininess: 100, specular: 0xffffff, depthWrite: false });
+    g.add(at(ball(0.27, glass, 16), 0, -0.12, 0));   // a bubble round the whole head
+    g.add(at(cyl(0.2, 0.22, 0.07, mat(0xf2f2f2), 16), 0, -0.36, 0));
+    g.add(at(cyl(0.012, 0.012, 0.14, mat(0x999999), 6), 0.13, 0.16, 0));
+    g.add(at(ball(0.03, glow(0xff3f3f), 6), 0.13, 0.24, 0));
+    return g;
+  },
 };
+
+// ---- more roof toys ------------------------------------------------------------------
+function onRoof(v) {
+  const g = new THREE.Group();
+  g.position.set(...v.anchors.roof.pos);
+  return g;
+}
+
+function balloons(v) {
+  const g = onRoof(v);
+  const cols = [0xe8352f, 0xffd21f, 0x2f7fe8, 0x2fb84a, 0xff6fb5];
+  const strings = new THREE.BufferGeometry().setFromPoints(cols.flatMap(() => [new THREE.Vector3(), new THREE.Vector3()]));
+  g.add(new THREE.LineSegments(strings, new THREE.LineBasicMaterial({ color: 0x777777 })));
+  const items = cols.map((c, i) => {
+    const a = (i / cols.length) * Math.PI * 2;
+    const b = ball(0.17, new THREE.MeshPhongMaterial({ color: c, shininess: 80, specular: 0x777777 }), 12);
+    b.scale.y = 1.2;
+    g.add(b);
+    return { b, x: Math.cos(a) * 0.3, y: 1.0 + (i % 2) * 0.24, z: Math.sin(a) * 0.22, phase: i * 1.7 };
+  });
+  const pos = strings.attributes.position;
+  return {
+    objects: [[v.root, g]],
+    update: (t) => items.forEach((it, i) => {
+      it.b.position.set(it.x + Math.sin(t * 1.5 + it.phase) * 0.07, it.y + Math.sin(t * 2.1 + it.phase) * 0.05, it.z);
+      pos.setXYZ(i * 2, 0, 0.05, 0);
+      pos.setXYZ(i * 2 + 1, it.b.position.x, it.b.position.y - 0.2, it.b.position.z);
+      pos.needsUpdate = true;
+    }),
+  };
+}
+
+function pinwheel(v) {
+  const g = onRoof(v);
+  g.add(at(cyl(0.02, 0.02, 0.75, mat(0xdddddd), 6), 0, 0.37, 0));
+  const wheel = new THREE.Group();
+  wheel.position.set(0, 0.78, 0.06);
+  [0xe8352f, 0xffd21f, 0x2f7fe8, 0x2fb84a].forEach((c, i) => {
+    const arm = new THREE.Group();
+    arm.rotation.z = (i * Math.PI) / 2;
+    const blade = at(new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.3, 3), mat(c, { side: THREE.DoubleSide })), 0.06, 0.15, 0);
+    blade.scale.z = 0.15;
+    blade.rotation.z = -0.4;
+    arm.add(blade);
+    wheel.add(arm);
+  });
+  wheel.add(ball(0.04, mat(0xffffff), 8));
+  g.add(wheel);
+  return { objects: [[v.root, g]], update: (t) => { wheel.rotation.z = -t * 5; } };
+}
+
+function parasol(v) {
+  const g = onRoof(v);
+  g.add(at(cyl(0.02, 0.02, 0.95, mat(0xeeeeee), 6), 0, 0.47, 0));
+  const tex = canvasTex(256, 32, (c, w, h) => { for (let i = 0; i < 12; i++) { c.fillStyle = i % 2 ? '#ffffff' : '#ff4f8b'; c.fillRect((i * w) / 12, 0, w / 12 + 1, h); } });
+  const canopy = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.32, 12, 1, true), new THREE.MeshLambertMaterial({ map: tex, side: THREE.DoubleSide }));
+  canopy.position.y = 1.05;
+  g.add(canopy, at(ball(0.04, mat(0xffffff), 8), 0, 1.23, 0));
+  return { objects: [[v.root, g]], update: (t) => { g.rotation.y = Math.sin(t * 0.5) * 0.4; } };
+}
+
+function discoBall(v) {
+  const g = onRoof(v);
+  g.add(at(cyl(0.02, 0.02, 0.3, mat(0x999999), 6), 0, 0.15, 0));
+  const tex = canvasTex(64, 32, (c) => { for (let y = 0; y < 8; y++) for (let x = 0; x < 16; x++) { c.fillStyle = (x + y) % 3 ? '#cfd6de' : '#ffffff'; c.fillRect(x * 4, y * 4, 4, 4); } });
+  const disco = at(new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 10), new THREE.MeshPhongMaterial({ map: tex, shininess: 120, specular: 0xffffff, flatShading: true })), 0, 0.5, 0);
+  g.add(disco);
+  const sparks = [0xff3fd0, 0x3fd0ff, 0xffe03f].map((c) => { const h = halo(c, 0.7); g.add(h); return h; });
+  return {
+    objects: [[v.root, g]],
+    update: (t) => {
+      disco.rotation.y = t * 2;
+      sparks.forEach((h, i) => { const a = t * 3 + (i * Math.PI * 2) / 3; h.position.set(Math.cos(a) * 0.4, 0.5 + Math.sin(t * 5 + i) * 0.15, Math.sin(a) * 0.4); });
+    },
+  };
+}
+
+function rotor(v) {
+  const g = onRoof(v);
+  g.add(at(cyl(0.03, 0.04, 0.25, mat(0x555555), 8), 0, 0.12, 0));
+  const spin = new THREE.Group();
+  spin.position.y = 0.27;
+  spin.add(ball(0.06, mat(0x333333), 8));
+  for (const r of [0, Math.PI / 2]) {
+    const blade = rbox(1.7, 0.025, 0.12, 0.01, mat(0x3a3f45));
+    blade.rotation.y = r;
+    spin.add(blade);
+  }
+  g.add(spin);
+  return { objects: [[v.root, g]], update: (t) => { spin.rotation.y = t * 16; } };
+}
+
+function rainbowArch(v) {
+  const g = onRoof(v);
+  [0xe8352f, 0xff8a1f, 0xffd21f, 0x2fb84a, 0x2f7fe8, 0x8e4fe0].forEach((c, i) => {
+    g.add(new THREE.Mesh(new THREE.TorusGeometry(0.78 - i * 0.07, 0.036, 6, 28, Math.PI), mat(c)));
+  });
+  for (const s of [-1, 1]) {   // a little cloud at each end
+    for (const [dx, dy, r] of [[0, 0, 0.13], [0.11, 0.03, 0.1], [-0.1, 0.02, 0.1]]) g.add(at(blob(r, mat(C.white)), s * 0.6 + dx, dy, dy));
+  }
+  return { objects: [[v.root, g]] };
+}
+
+// ---- more lights ----------------------------------------------------------------------
+function partyLights(v) {   // a glowing bulb on each top corner, chasing through the rainbow
+  const g = new THREE.Group();
+  const items = v.anchors.edges.map((p, i) => {
+    const m = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1 });
+    const b = at(ball(0.07, m, 8), ...p);
+    const h = halo(0xffffff, 0.9);
+    h.position.copy(b.position);
+    g.add(b, h);
+    return { m, h, i };
+  });
+  const c = new THREE.Color();
+  return {
+    objects: [[v.root, g]],
+    update: (t) => items.forEach(({ m, h, i }) => {
+      c.setHSL((t * 0.5 + i * 0.25) % 1, 1, 0.55);
+      m.color.copy(c); m.emissive.copy(c); h.material.color.copy(c);
+    }),
+  };
+}
+
+function starLights(v) {   // little gold stars twinkling round the top
+  const pts = v.anchors.edges.map((p) => new THREE.Vector3(...p));
+  pts.push(pts[0]);
+  const g = new THREE.Group();
+  const stars = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    for (let k = 0; k < 3; k++) {
+      const p = pts[i].clone().lerp(pts[i + 1], (k + 0.5) / 3);
+      const st = at(new THREE.Mesh(new THREE.OctahedronGeometry(0.06), glow(0xffd84a)), p.x, p.y + 0.08, p.z);
+      g.add(st);
+      stars.push(st);
+    }
+  }
+  return {
+    objects: [[v.root, g]],
+    update: (t) => stars.forEach((st, i) => { st.rotation.y = t * 2 + i; st.scale.setScalar(0.6 + 0.6 * Math.abs(Math.sin(t * 3 + i * 1.9))); }),
+  };
+}
+
+// ---- pets riding on the bonnet ----------------------------------------------------------
+function pet(build) {
+  return (v) => {
+    const b = v.anchors.bonnet;
+    const p = build();
+    const holder = new THREE.Group();
+    holder.position.set(b.pos[0] - 0.14, b.pos[1] + 0.01, b.pos[2] + b.d * 0.1);   // left of the tractor's exhaust stack
+    holder.scale.setScalar(1.4);   // big enough to spot on the TV
+    holder.add(p.root);
+    return { objects: [[v.root, holder]], update: p.update };
+  };
+}
+
+const eye = (x, y, z, r = 0.022) => at(ball(r, mat(0x1e1e22), 6), x, y, z);
+
+const PETS = {
+  duck() {
+    const root = new THREE.Group(), y = mat(0xffd21f), o = mat(0xff8a1f);
+    const body = at(ball(0.13, y, 10), 0, 0.12, 0); body.scale.set(1, 0.85, 1.3);
+    const head = new THREE.Group(); head.position.set(0, 0.27, 0.08);
+    head.add(ball(0.08, y, 10), at(rbox(0.07, 0.03, 0.08, 0.012, o), 0, -0.01, 0.09), eye(0.04, 0.02, 0.06), eye(-0.04, 0.02, 0.06));
+    const tail = at(new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.09, 6), y), 0, 0.17, -0.17); tail.rotation.x = -1;
+    root.add(body, head, tail);
+    return { root, update: (t) => { root.rotation.z = Math.sin(t * 4) * 0.12; head.rotation.y = Math.sin(t * 0.9) * 0.6; } };
+  },
+  chick() {
+    const root = new THREE.Group(), y = mat(0xffe25a);
+    const body = at(ball(0.12, y, 10), 0, 0.12, 0);
+    root.add(body, at(new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.06, 6), mat(0xff8a1f)), 0, 0.15, 0.13).rotateX(Math.PI / 2), eye(0.045, 0.17, 0.1), eye(-0.045, 0.17, 0.1));
+    for (const s of [-1, 1]) { const w = at(ball(0.05, y, 6), s * 0.11, 0.11, 0); w.scale.set(0.4, 0.8, 1); root.add(w); }
+    return { root, update: (t) => { root.position.y = Math.max(0, Math.sin(t * 6)) * 0.07; } };
+  },
+  kitten() {
+    const root = new THREE.Group(), fur = mat(0xf0a050), pale = mat(0xfde2c0);
+    root.add(at(rbox(0.16, 0.16, 0.24, 0.07, fur), 0, 0.09, 0));
+    const head = new THREE.Group(); head.position.set(0, 0.23, 0.08);
+    head.add(ball(0.085, fur, 10), at(ball(0.035, pale, 6), 0, -0.02, 0.07), eye(0.035, 0.02, 0.07), eye(-0.035, 0.02, 0.07));
+    for (const s of [-1, 1]) head.add(at(new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.07, 4), fur), s * 0.05, 0.08, 0));
+    const tail = new THREE.Group(); tail.position.set(0, 0.12, -0.12);
+    tail.add(at(cyl(0.02, 0.02, 0.18, fur, 6), 0, 0.09, 0));
+    root.add(head, tail);
+    return { root, update: (t) => { tail.rotation.z = Math.sin(t * 3) * 0.5; head.rotation.y = Math.sin(t * 0.7) * 0.5; } };
+  },
+  bunny() {
+    const root = new THREE.Group(), w = mat(C.white);
+    const body = at(ball(0.12, w, 10), 0, 0.11, 0); body.scale.set(1, 0.9, 1.15);
+    const head = new THREE.Group(); head.position.set(0, 0.24, 0.08);
+    head.add(ball(0.08, w, 10), at(ball(0.018, mat(0xff8ab3), 6), 0, -0.01, 0.08), eye(0.035, 0.02, 0.065), eye(-0.035, 0.02, 0.065));
+    for (const s of [-1, 1]) { const ear = at(ball(0.03, w, 6), s * 0.035, 0.13, -0.01); ear.scale.set(0.8, 3, 0.6); ear.rotation.z = -s * 0.15; head.add(ear); }
+    root.add(body, head, at(ball(0.045, w, 6), 0, 0.12, -0.14));
+    return { root, update: (t) => { root.position.y = Math.max(0, Math.sin(t * 5)) * 0.09; } };
+  },
+  frog() {
+    const root = new THREE.Group(), g = mat(0x4cbf3a), dark = mat(0x2f8a24);
+    const body = at(ball(0.13, g, 10), 0, 0.09, 0); body.scale.set(1.2, 0.7, 1.1);
+    root.add(body, at(rbox(0.14, 0.012, 0.02, 0.005, mat(0x8a2a2a)), 0, 0.09, 0.14));
+    for (const s of [-1, 1]) {
+      root.add(at(ball(0.05, g, 8), s * 0.07, 0.17, 0.06), at(ball(0.03, mat(C.white), 6), s * 0.07, 0.19, 0.09), eye(s * 0.07, 0.195, 0.115, 0.016));
+      root.add(at(ball(0.05, dark, 6), s * 0.13, 0.03, -0.05));
+    }
+    return { root, update: (t) => { const k = (t * 0.6) % 1; root.position.y = k < 0.2 ? Math.sin((k / 0.2) * Math.PI) * 0.18 : 0; } };
+  },
+  penguin() {
+    const root = new THREE.Group(), blk = mat(0x22252b), wht = mat(C.white), o = mat(0xff8a1f);
+    const body = at(ball(0.12, blk, 10), 0, 0.15, 0); body.scale.set(0.9, 1.4, 0.85);
+    const belly = at(ball(0.09, wht, 10), 0, 0.14, 0.04); belly.scale.set(0.85, 1.4, 0.7);
+    root.add(body, belly, at(ball(0.08, blk, 10), 0, 0.33, 0), at(new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.07, 6), o), 0, 0.32, 0.09).rotateX(Math.PI / 2), eye(0.035, 0.35, 0.065), eye(-0.035, 0.35, 0.065));
+    for (const s of [-1, 1]) root.add(at(rbox(0.05, 0.02, 0.07, 0.008, o), s * 0.05, 0.01, 0.04));
+    return { root, update: (t) => { root.rotation.z = Math.sin(t * 5) * 0.15; } };
+  },
+  puppy() {   // a tiny chow chow, like the one in the garden
+    const d = chowChow();
+    d.root.scale.setScalar(0.3);
+    d.root.remove(d.root.children[0]);   // no shadow
+    d.tongue.visible = true;
+    return { root: d.root, update: (t) => { d.tail.rotation.z = Math.sin(t * 10) * 0.35; d.head.rotation.y = Math.sin(t * 0.8) * 0.5; } };
+  },
+  teddy() {
+    const root = new THREE.Group(), fur = mat(0x9a6233), muzzle = mat(0xe0b884);
+    root.add(at(ball(0.12, fur, 10), 0, 0.12, 0));
+    const head = new THREE.Group(); head.position.set(0, 0.29, 0.02);
+    head.add(ball(0.09, fur, 10), at(ball(0.04, muzzle, 6), 0, -0.02, 0.075), eye(0.035, 0.025, 0.075), eye(-0.035, 0.025, 0.075), at(ball(0.015, mat(0x1e1e22), 6), 0, -0.005, 0.11));
+    for (const s of [-1, 1]) { head.add(at(ball(0.035, fur, 6), s * 0.07, 0.07, 0)); root.add(at(ball(0.045, fur, 6), s * 0.11, 0.13, 0.05), at(ball(0.05, fur, 6), s * 0.07, 0.02, 0.07)); }
+    root.add(head);
+    return { root, update: (t) => { root.rotation.z = Math.sin(t * 1.5) * 0.1; } };
+  },
+};
+
+// ---- magic trails (main.js scatters them behind the moving vehicle) ---------------------
+export const TRAILS = {
+  bubbles: { kind: 'up', colours: [0xbfe9ff, 0xe8f7ff, 0xd9c8ff], rate: 12 },
+  sparkles: { kind: 'stars', colours: [0xffe36b, 0xffffff, 0xffb3e6], rate: 22 },
+  petals: { kind: 'fall', colours: [0xff9ccf, 0xffffff, 0xffc2e0], rate: 16 },
+  rainbow: { kind: 'stars', colours: [0xe8352f, 0xff8a1f, 0xffd21f, 0x2fb84a, 0x2f7fe8, 0x8e4fe0], rate: 30, inOrder: true },
+  confetti: { kind: 'fall', colours: [0xff4f8b, 0x3fa8ff, 0xffd21f, 0x2fb84a, 0xc56bff], rate: 20 },
+};
+const trail = (name) => () => ({ objects: [], trail: TRAILS[name] });
 
 // ---- the pool ------------------------------------------------------------------------
 export const POOL = [
@@ -487,6 +965,17 @@ export const POOL = [
   { id: 'wheels-gold', slot: 'wheels', make: hubcaps('gold') },
   { id: 'wheels-rainbow', slot: 'wheels', make: hubcaps('rainbow') },
   ...Object.keys(HATS).map((k) => ({ id: `hat-${k}`, slot: 'hat', make: hat(HATS[k]) })),
+  { id: 'lights-party', slot: 'lights', make: partyLights },
+  { id: 'lights-stars', slot: 'lights', make: starLights },
+  { id: 'roof-balloons', slot: 'roof', make: balloons },
+  { id: 'roof-pinwheel', slot: 'roof', make: pinwheel },
+  { id: 'roof-parasol', slot: 'roof', make: parasol },
+  { id: 'roof-disco', slot: 'roof', make: discoBall },
+  { id: 'roof-rotor', slot: 'roof', make: rotor },
+  { id: 'roof-rainbow', slot: 'roof', make: rainbowArch },
+  ...['flower', 'star', 'swirl', 'football'].map((k) => ({ id: `wheels-${k}`, slot: 'wheels', make: hubcaps(k) })),
+  ...Object.keys(PETS).map((k) => ({ id: `pet-${k}`, slot: 'pet', make: pet(PETS[k]) })),
+  ...Object.keys(TRAILS).map((k) => ({ id: `trail-${k}`, slot: 'trail', make: trail(k) })),
 ];
 
 export const BY_ID = Object.fromEntries(POOL.map((d) => [d.id, d]));
