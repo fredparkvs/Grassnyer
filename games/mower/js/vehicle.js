@@ -106,7 +106,7 @@ export class Vehicle {
       const fx = Math.sin(this.heading), fz = Math.cos(this.heading);
       const approach = -(fx * nx + fz * nz) * this.speed;
       if (approach > 0.3 && this.bumpCooldown <= 0) {
-        bump = { kind, strength: Math.min(1, approach / 3), nx, nz };   // n: away from what was hit
+        bump = { kind, strength: Math.min(1, approach / 3) };
         this.bumpCooldown = 0.6;
         this.bounceTimer = 0.45;
         this.speed = -Math.sign(this.speed) * Math.max(0.9, Math.abs(this.speed) * 0.4);

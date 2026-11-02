@@ -288,16 +288,6 @@ async function main() {
     // touching the wheel (button 5 has no job) so it doesn't stop to wait
     for (const end = Date.now() + 20000; Date.now() < end && !(await G('window.__rumbles || 0')); ) await tap(5);
     check('hitting the fence rumbles the wheel', (await G('window.__rumbles || 0')) > 0, String(await G('window.__rumbles || 0')));
-    // keeps driving into the same bit of fence: after 5 bumps it hops away from it
-    // (button 5 has no job: pressing it is just "touching the wheel", so it keeps going)
-    for (const end = Date.now() + 25000; Date.now() < end; ) {
-      if ((await G('__grassnyer.hops')) > 0 && !(await G('__grassnyer.hopping'))) break;
-      await tap(5);
-    }
-    v = await G('__grassnyer.vehicle');
-    check('bumping the same spot 5 times hops away from it', (await G('__grassnyer.hops')) > 0 && v.z > B.minZ + 2.5,
-      `hops=${await G('__grassnyer.hops')} z=${v.z.toFixed(1)}`);
-    await shot('05b-after-hop');
 
     // ---- stuck: trying to drive but going nowhere -> countdown -> back to the start ----
     const pinned = await G('[__grassnyer.vehicle.x, __grassnyer.vehicle.z]');

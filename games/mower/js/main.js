@@ -29,7 +29,6 @@ const T = {
   hintAfter: num('hintAfter', 8),      // seconds without cutting before sparkles show
   stuckAfter: num('stuckAfter', 10),   // seconds trying to drive without getting anywhere...
   stuckCount: 5,                       // ...then a countdown back to the start
-  bumpHop: 5,                          // bumps in the same spot in a row before hopping away
   finishAt: 0.8,                       // lawn counts as done at 80% (was 95%; lowered at the parent's request)
   presents: 3,
   giftFirst: num('giftFirst', 20),     // seconds into a lawn before the first bonus present floats down...
@@ -121,9 +120,8 @@ const pick = (list) => list[(Math.random() * list.length) | 0];
 let going = true, idleStopped = false, cuttingLevel = 0;
 let gear = 1, beepIn = 0;          // gear lever: 1 forward, -1 reverse
 const REVERSE_SPEED = 0.5;         // reversing is slower than driving forward
-// never stuck: where it last got somewhere, the countdown, recent bumps, the hop
-let progressAt = { x: 0, z: 0, t: 0 }, countdown = 0, bumps = [], hopping = false, hops = 0, resets = 0;
-const HOP_DISTANCE = 3.5;
+// never stuck: where it last got somewhere, and the countdown back to the start
+let progressAt = { x: 0, z: 0, t: 0 }, countdown = 0, resets = 0;
 let lastCutTime = 0, hintsOn = false, hintsSince = 0, hintRefresh = 0;
 let camMode = 'follow', camHeading = 0, timerDue = false;
 let simT = 0, last = performance.now();
@@ -220,7 +218,7 @@ async function startLawn(index) {
   going = true;
   gear = 1;
   progressAt = { x: vehicle.x, z: vehicle.z, t: simT };
-  countdown = 0; bumps = []; hopping = false;
+  countdown = 0;
   hud.setCountdown(null);
   idleStopped = false;
   clippings.clear(); confetti.clear(); paintFx.clear(); trailUp.clear(); trailStars.clear(); trailFall.clear(); dirtFx.clear();
@@ -298,44 +296,9 @@ function backToStart() {
   camHeading = vehicle.heading;   // the camera swoops over to the start
   gear = 1;
   going = true;
-  bumps = [];
   progressAt = { x: vehicle.x, z: vehicle.z, t: simT };
   paintFx.burst(vehicle.x, 1, vehicle.z, 40, 3, CONFETTI_COLOURS, 1.0);
   sound.play('sparkle');
-}
-
-// Hops HOP_DISTANCE away from whatever it keeps bumping into (out of a corner,
-// both walls' directions add up to "diagonally out") and faces that way.
-function hopAway(list) {
-  let nx = 0, nz = 0;
-  for (const b of list) { nx += b.nx || 0; nz += b.nz || 0; }
-  if (Math.hypot(nx, nz) < 0.1) { nx = -vehicle.x; nz = -vehicle.z; }   // fall back: towards the middle
-  const len = Math.hypot(nx, nz) || 1;
-  nx /= len; nz /= len;
-  const B = world.colliders.bounds, m = vehicle.radius + 0.6;
-  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-  const x0 = vehicle.x, z0 = vehicle.z, h0 = vehicle.heading;
-  const x1 = clamp(x0 + nx * HOP_DISTANCE, B.minX + m, B.maxX - m);
-  const z1 = clamp(z0 + nz * HOP_DISTANCE, B.minZ + m, B.maxZ - m);
-  const turn = wrapAngle(Math.atan2(nx, nz) - h0);
-  hopping = true;
-  hops++;
-  vehicle.speed = 0;
-  sound.play('hop');
-  tween(0.7, (k) => {
-    const e = ease(k);
-    vehicle.x = x0 + (x1 - x0) * e;
-    vehicle.z = z0 + (z1 - z0) * e;
-    vehicle.y = Math.sin(Math.PI * k) * 1.4;
-    vehicle.heading = h0 + turn * e;
-  }).then(() => {
-    vehicle.y = 0;
-    vehicle.speed = 0;
-    vehicle.collide(world.colliders);   // never land inside a tree
-    hopping = false;
-    progressAt = { x: vehicle.x, z: vehicle.z, t: simT };
-    sound.play('land');
-  });
 }
 
 // ---- playing -----------------------------------------------------------------------
@@ -371,19 +334,14 @@ function updatePlay(dt) {
 
   if (wheel.paint.pressed) paint();
 
-  const bump = hopping ? null : vehicle.drive(dt, { target, steer: wheel.steer }, s, world.colliders);
+  const bump = vehicle.drive(dt, { target, steer: wheel.steer }, s, world.colliders);
   if (bump) {
     sound.play(bump.kind === 'water' ? 'splash' : 'boing');
     wheel.rumble(0.35 + 0.5 * bump.strength, 220);
-    // the same spot again and again: hop away from it
-    const prev = bumps[bumps.length - 1];
-    if (prev && (Math.hypot(vehicle.x - prev.x, vehicle.z - prev.z) > 2.5 || simT - prev.t > 6)) bumps = [];
-    bumps.push({ x: vehicle.x, z: vehicle.z, nx: bump.nx, nz: bump.nz, t: simT });
-    if (bumps.length >= T.bumpHop) { hopAway(bumps); bumps = []; }
   }
   // stuck counts while it's meant to be driving: in auto-drive that includes
   // waiting for a touch (a frustrated child lets go), but not after Stop
-  watchForStuck(dt, (s.driveMode === 'auto' ? going : target !== 0) && !hopping);
+  watchForStuck(dt, s.driveMode === 'auto' ? going : target !== 0);
 
   let cut = 0;
   if (Math.abs(vehicle.speed) > 0.05) cut = world.grass.cutAt(vehicle.x, vehicle.z, vehicle.heading);
@@ -821,8 +779,6 @@ window.__grassnyer = {
   get dog() { return { x: dog.x, z: dog.z, state: dog.state, visible: dog.root.visible }; },
   placeDog(x, z) { dog.place(x, z); },
   get countdown() { return countdown; },
-  get hopping() { return hopping; },
-  get hops() { return hops; },
   get resets() { return resets; },
   get start() { return world && world.start; },
   get bounds() { return world && world.colliders.bounds; },
