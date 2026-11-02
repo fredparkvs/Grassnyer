@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import * as M from './models.js';
 import { GrassField, mulberry } from './grass.js';
-import { LAWNS } from './lawns.js';
+import { LAWNS, lookWithGrass } from './lawns.js';
 
 export const CUT_RADIUS = 1.0;
 export const VEHICLE_RADIUS = 0.85;
@@ -132,14 +132,15 @@ function makeMotes(motes, w, h) {
 }
 
 // ---------------------------------------------------------------------------
-export function buildWorld(index) {
+// grass: the garage's grass choice (see GRASS_CHOICES), or null for the lawn's own
+export function buildWorld(index, grassChoice = null) {
   const def = LAWNS[index % LAWNS.length];
   const { w, h } = def;
   const group = new THREE.Group();
   const circles = [], boxes = [], shapes = [];
 
   // ground outside the lawn
-  const look = def.look;
+  const look = lookWithGrass(def.look, grassChoice);
   const outside = new THREE.Mesh(new THREE.PlaneGeometry(260, 260).rotateX(-Math.PI / 2), M.mat(look.ground));
   outside.position.y = -0.02;
   group.add(outside);
@@ -258,7 +259,7 @@ export function buildWorld(index) {
   if (motes) group.add(motes.points);
 
   return {
-    def, index, group, grass, start,
+    def, look, index, group, grass, start,
     colliders: { circles, boxes, bounds },
     pile: { x: compost.position.x, z: yardZ - 5.0 },
     dumpSpot: { x: compost.position.x, z: yardZ - 1.7, heading: 0 },

@@ -1,10 +1,12 @@
 // Garage: turn the wheel to pick mower or tractor, press; turn to pick a
-// colour, press. The last choices are pre-selected.
+// colour, press; turn to pick the grass colour (see GRASS_CHOICES), press.
+// The last choices are pre-selected.
 
 import * as THREE from 'three';
 import { Vehicle } from './vehicle.js';
 import { PAINT, mat, box, at, rbox } from './models.js';
 import { makeSky, addLights } from './world.js';
+import { LAWNS, GRASS_CHOICES } from './lawns.js';
 
 const TYPES = ['mower', 'tractor'];
 
@@ -36,12 +38,40 @@ export class Garage {
     shed.add(at(rbox(9.6, 0.4, 3.0, 0.1, mat(0x5d4636)), 0, 4.3, -4.6));
     this.scene.add(shed);
     this.vehicles = {};
+
+    // a ring of grass round the turntable, showing the grass colour being picked;
+    // for "every lawn its own" the tufts take the five lawns' colours in turn
+    this.tuftMats = LAWNS.map(() => new THREE.MeshLambertMaterial({ color: 0x9ad94f }));
+    const blade = new THREE.ConeGeometry(0.07, 0.55, 4).translate(0, 0.27, 0);
+    let seed = 5;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let i = 0; i < 90; i++) {
+      const a = rnd() * Math.PI * 2, r = 2.7 + rnd() * 1.6;
+      const tuft = new THREE.Group();
+      tuft.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+      const m = this.tuftMats[i % this.tuftMats.length];
+      for (let b = 0; b < 4; b++) {
+        const bl = new THREE.Mesh(blade, m);
+        bl.position.set((rnd() - 0.5) * 0.18, 0, (rnd() - 0.5) * 0.18);
+        bl.rotation.set((rnd() - 0.5) * 0.5, rnd() * 3, (rnd() - 0.5) * 0.5);
+        bl.scale.y = 0.7 + rnd() * 0.6;
+        tuft.add(bl);
+      }
+      this.scene.add(tuft);
+    }
   }
 
-  // Resolves with { type, colour } once both are picked.
-  start(type, colour) {
+  showGrass() {
+    const choice = GRASS_CHOICES[this.grass];
+    this.tuftMats.forEach((m, i) => m.color.set(choice ? choice.tip : LAWNS[i].look.grass.tip));
+  }
+
+  // Resolves with { type, colour, grass } once all three are picked.
+  start(type, colour, grass = 0) {
     this.typeIndex = Math.max(0, TYPES.indexOf(type));
     this.colour = colour;
+    this.grass = grass >= 0 && grass < GRASS_CHOICES.length ? grass : 0;
+    this.showGrass();
     this.step = 'vehicle';
     // ignore a wheel that is already turned (e.g. the touch that woke us)
     // until it has been back to the middle once
@@ -91,11 +121,16 @@ export class Garage {
         this.show();
         this.slide = d * 3;
         this.sound.play('whoosh');
-      } else {
+      } else if (this.step === 'colour') {
         this.colour = (this.colour + d + PAINT.length) % PAINT.length;
         for (const k of TYPES) this.vehicles[k].setColour(this.colour);
         this.hud.garage('colour', this.colour);
         this.sound.play('splash');
+      } else {
+        this.grass = (this.grass + d + GRASS_CHOICES.length) % GRASS_CHOICES.length;
+        this.showGrass();
+        this.hud.garage('grass', this.colour, this.grass);
+        this.sound.play('whoosh');
       }
     }
     if (w.paint.pressed && this.step === 'colour') {
@@ -110,9 +145,13 @@ export class Garage {
         this.step = 'colour';
         this.hud.garage('colour', this.colour);
         this.sound.voice('pick_a_colour');
+      } else if (this.step === 'colour') {
+        this.step = 'grass';
+        this.hud.garage('grass', this.colour, this.grass);
+        this.sound.voice('pick_the_grass');
       } else {
         this.hud.garage(null);
-        this.resolve({ type: TYPES[this.typeIndex], colour: this.colour, vehicle: v });
+        this.resolve({ type: TYPES[this.typeIndex], colour: this.colour, grass: this.grass, vehicle: v });
       }
     }
   }

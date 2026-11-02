@@ -8,12 +8,16 @@ The game is described by the "native" section of games/<id>/game.json:
     "command":   argv to run; "{name}" is replaced by a random pick from choices
     "choices":   {"name": ["option", ...]} picked at random on each launch
     "requires":  program that must be installed (defaults to command[0])
-    "exitOnLog": regex; when the game prints a matching line it is closed,
-                 e.g. when a race has finished
+    "exitOnLog": regex; when the game prints a matching line it is closed
+                 (after "exitDelay" seconds), e.g. when a race has finished
+    "exitNowOnLog": regex; closes it straight away, e.g. when the player has
+                 left the race and the game is back at its own main menu
 
 While the game runs, the wheel is watched directly (/dev/input/js*). Holding
-the two parent buttons for 5 seconds closes the game, which returns the
-screen to the picker.
+the two parent buttons (select + start) for 2 seconds closes the game, which
+returns the screen to the picker. That's shorter than the mower game's 5 s
+because there is no parent menu to open here: it goes straight back to the
+games (asked for by the parent, 2026-11-02).
 
 The game server runs as a background service without the desktop's display
 variables, so kiosk.sh saves them to <data>/session.env and they are loaded here.
@@ -36,7 +40,7 @@ from pathlib import Path
 
 ROOT = Path(os.environ.get("GRASSNYER_ROOT", Path(__file__).resolve().parent.parent))
 DATA = Path(os.environ.get("GRASSNYER_DATA", Path.home() / ".local/share/grassnyer"))
-PARENT_HOLD_SECONDS = 5
+PARENT_HOLD_SECONDS = 2
 JS_EVENT = struct.Struct("IhBB")  # time, value, type, number (linux/joystick.h)
 JS_EVENT_BUTTON = 0x01
 INPUT_DIR = Path(os.environ.get("GRASSNYER_INPUT_DIR", "/dev/input"))  # tests point this elsewhere
@@ -78,7 +82,7 @@ def build_command(native):
     picks = {k: random.choice(v) for k, v in native.get("choices", {}).items() if v}
     cmd = [os.path.expanduser(arg.format(**picks)) for arg in native["command"]]
     # games piping into us would otherwise buffer their output for a long time
-    if native.get("exitOnLog") and shutil.which("stdbuf"):
+    if (native.get("exitOnLog") or native.get("exitNowOnLog")) and shutil.which("stdbuf"):
         cmd = ["stdbuf", "-oL", "-eL"] + cmd
     return cmd
 
@@ -160,6 +164,7 @@ def main():
     settings = load_json(DATA / "settings.json", {})
     buttons = (settings.get("wheel") or {}).get("parentButtons")   # None: pick per wheel
     exit_re = re.compile(native["exitOnLog"]) if native.get("exitOnLog") else None
+    now_re = re.compile(native["exitNowOnLog"]) if native.get("exitNowOnLog") else None
 
     DATA.mkdir(parents=True, exist_ok=True)
     logfile = open(DATA / f"native-{gid}.log", "w", buffering=1)
@@ -174,6 +179,10 @@ def main():
 
     for line in proc.stdout:
         logfile.write(line)
+        if now_re and now_re.search(line):
+            log("left the game: back to the games")
+            stop(proc)
+            break
         if exit_re and exit_re.search(line):
             log("finished: closing the game")
             time.sleep(native.get("exitDelay", 0))

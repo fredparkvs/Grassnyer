@@ -43,6 +43,8 @@
 .g-wheel { width: 13vh; height: 13vh; padding: 1.5vh; border-radius: 50%; background: rgba(255, 255, 255, 0.85); animation: wiggle 1.4s ease-in-out infinite; }
 .pot { width: 8vh; height: 9vh; transition: transform 0.2s; }
 .pot.sel { transform: scale(1.45) translateY(-1vh); filter: drop-shadow(0 0 1.2vh #fff); }
+.sw { width: 8vh; height: 8vh; transition: transform 0.2s; }
+.sw.sel { transform: scale(1.45) translateY(-1vh); filter: drop-shadow(0 0 1.2vh #fff); }
 .g-button { width: 12vh; height: 12vh; animation: pulse 1.1s ease-in-out infinite; }
 .g-button.press { animation: press 0.3s; }
 @keyframes pulse { 50% { transform: scale(1.12); } }

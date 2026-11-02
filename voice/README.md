@@ -9,6 +9,7 @@ is missing falls back to a built-in sound.
 | `lets_mow` | A lawn starts | "Let's mow!" |
 | `pick_your_mower` | The garage opens | "Pick your mower!" |
 | `pick_a_colour` | Choosing the colour | "What colour today?" |
+| `pick_the_grass` | Choosing the grass colour | "And what colour grass?" |
 | `ooh_a_present` | A present lands on the vehicle | "Ooh, a present!" |
 | `nearly_done` | Sparkles show where grass is left | "Nearly done! Find the sparkles!" |
 | `well_done` | The grass pile celebration | "Well done! Look at that pile!" |

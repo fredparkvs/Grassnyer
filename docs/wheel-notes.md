@@ -77,8 +77,9 @@ SuperTuxKart numbers this wheel's buttons the raw way. Its defaults put
 accelerate on 2 (triangle) and look back on 0, so the gas pedal changed the
 camera. `~/.config/supertuxkart/config-0.10/input.xml` now has, for
 `SHANWAN PS3 GamePad`: accel = button 0 (gas pedal), brake = button 3 (brake
-pedal), lookBack = button 2 (triangle). The original is kept next to it as
-`input.xml.before-pedals`. SuperTuxKart rewrites this file when it quits, so
+pedal), lookBack = button 2 (triangle), pauserace = button 10 (PS), so that
+holding Select + Start doesn't pop up the pause menu. The originals are kept
+next to it as `input.xml.before-pedals` and `input.xml.before-pause`. SuperTuxKart rewrites this file when it quits, so
 only edit it while it isn't running.
 
 ## Still to find out

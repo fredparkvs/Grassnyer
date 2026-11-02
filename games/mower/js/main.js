@@ -11,7 +11,7 @@ import { Wheel } from '/kit/input.js';
 import { Sound } from '/kit/audio.js';
 import { ParentMenu } from '/kit/parent.js';
 import { buildWorld, makeSky, addLights, applyLook, CUT_RADIUS } from './world.js';
-import { LAWNS } from './lawns.js';
+import { LAWNS, GRASS_CHOICES } from './lawns.js';
 import { Garage } from './garage.js';
 import { Hud } from './hud.js';
 import { Particles, Hints, CLIPPING_COLOURS, CONFETTI_COLOURS } from './effects.js';
@@ -38,7 +38,7 @@ const T = {
 const SCALES = [1, 0.85, 0.72, 0.6, 0.5];
 
 await loadSettings();
-const gs = gameState('mower', { vehicle: 'mower', colour: 0, nextLawn: 0 });
+const gs = gameState('mower', { vehicle: 'mower', colour: 0, grass: 0, nextLawn: 0 });
 
 const wheel = new Wheel();
 const sound = new Sound();
@@ -164,11 +164,12 @@ async function enterGarage() {
   hud.setWheelHint(false);
   sound.stopEngine();
   sound.startMusic();
-  const picked = garage.start(gs.vehicle, gs.colour);
+  const picked = garage.start(gs.vehicle, gs.colour, gs.grass || 0);
   hud.fade(0, 500);
   const choice = await picked;
   gs.vehicle = choice.type;
   gs.colour = choice.colour;
+  gs.grass = choice.grass;
   saveSoon();
   vehicle = choice.vehicle;
   state = 'leaving-garage';
@@ -181,9 +182,9 @@ async function startLawn(index) {
   if (world) { scene.remove(world.group); world.dispose(); }
   if (pile) scene.remove(pile);
   presents.forEach((p) => scene.remove(p.obj));
-  world = buildWorld(index);
+  world = buildWorld(index, GRASS_CHOICES[gs.grass] || null);
   scene.add(world.group);
-  applyLook(world.def.look, { scene, sky, lights });   // each lawn has its own sky and light
+  applyLook(world.look, { scene, sky, lights });   // each lawn has its own sky and light
   currentLawn = index;
   gs.nextLawn = (index + 1) % LAWNS.length;
   saveSoon();
@@ -199,10 +200,10 @@ async function startLawn(index) {
   dog.spawn(world, vehicle);
   garden.reset(world);
   hud.clearCarrots();
-  clipColours = clippingShades(world.def.look);
+  clipColours = clippingShades(world.look);
   vehicle.m.catcher.material = M.mat(clipColours[1]);
 
-  pile = M.grassPile(clipColours, world.def.look.grass.flowerChance > 0.08 ? world.def.look.grass.flowers : []);
+  pile = M.grassPile(clipColours, world.look.grass.flowerChance > 0.08 ? world.look.grass.flowers : []);
   pile.position.set(world.pile.x, 0, world.pile.z);
   pile.scale.setScalar(0.001);
   pile.visible = false;
@@ -785,6 +786,7 @@ window.__grassnyer = {
   get hints() { return hintsOn; },
   get tufts() { return world ? world.grass.tuftCount : 0; },
   get lawnName() { return world ? world.def.name : null; },
+  get grassTip() { return world ? world.look.grass.tip : null; },
   mowTo(fraction) {
     const g = world.grass;
     const left = g.remainingTexels();
@@ -793,7 +795,7 @@ window.__grassnyer = {
   },
   place(x, z, heading) { vehicle.place(x, z, heading); camHeading = heading; },
   sleep(reason = 'idle') { goToSleep(reason); },
-  get garage() { return { step: garage.step, type: garage.current()?.type, colour: garage.colour, decorations: garage.current()?.decorationIds() }; },
+  get garage() { return { step: garage.step, type: garage.current()?.type, colour: garage.colour, grass: garage.grass, decorations: garage.current()?.decorationIds() }; },
   jumpToLawn(i) { if (state === 'play') startLawn(i); },
   expireTimer() { session.playTime = 1e9; },
 };

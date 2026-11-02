@@ -2,8 +2,20 @@
 // "touch the wheel" hint, garage pickers, fades and the sleep screen.
 
 import { PAINT } from './models.js';
+import { LAWNS, GRASS_CHOICES } from './lawns.js';
 
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
+
+// a clump of three blades for the garage's grass choices; "every lawn its own"
+// gets one blade in each of three lawns' colours
+function grassSwatch(choice) {
+  const cols = choice ? [choice.tip, choice.tip, choice.tip] : [LAWNS[0], LAWNS[3], LAWNS[4]].map((l) => l.look.grass.tip);
+  const edge = choice ? hex(choice.base) : '#2a4a2a';
+  return `<svg viewBox="0 0 40 40" stroke="${edge}" stroke-width="2" stroke-linejoin="round">
+    <path d="M6 36 C8 22 10 14 8 6 C14 14 15 24 15 36Z" fill="${hex(cols[0])}"/>
+    <path d="M14 36 C16 20 20 10 26 4 C24 16 22 26 22 36Z" fill="${hex(cols[1])}"/>
+    <path d="M21 36 C24 26 28 20 35 16 C30 24 29 30 30 36Z" fill="${hex(cols[2])}"/></svg>`;
+}
 
 const SVG = {
   grass: `<svg viewBox="0 0 40 40"><path d="M6 36 C8 22 10 14 8 6 C14 14 15 24 15 36Z M14 36 C16 20 20 10 26 4 C24 16 22 26 22 36Z M21 36 C24 26 28 20 35 16 C30 24 29 30 30 36Z" fill="#3aa52a" stroke="#1f6b17" stroke-width="2" stroke-linejoin="round"/></svg>`,
@@ -36,6 +48,7 @@ export class Hud {
       <div class="garage-ui hidden">
         <div class="g-row g-vehicle"><span class="g-arrow">${SVG.arrowL}</span><span class="g-wheel">${SVG.wheel}</span><span class="g-arrow">${SVG.arrowR}</span></div>
         <div class="g-row g-colours">${PAINT.map((c) => `<span class="pot" style="color:${hex(c)}">${SVG.pot}</span>`).join('')}</div>
+        <div class="g-row g-grass">${GRASS_CHOICES.map((g) => `<span class="sw">${grassSwatch(g)}</span>`).join('')}</div>
         <div class="g-button">${SVG.button}</div>
       </div>
       <div class="sleep hidden"><div class="moon">${SVG.moon}</div><div class="zzz"><b>z</b><b>z</b><b>z</b></div></div>
@@ -46,6 +59,7 @@ export class Hud {
     this.fill = this.q('.fill');
     this.gifts = [...root.querySelectorAll('.gift')];
     this.pots = [...root.querySelectorAll('.pot')];
+    this.swatches = [...root.querySelectorAll('.sw')];
     this.fadeEl = this.q('.fade');
   }
 
@@ -104,12 +118,14 @@ export class Hud {
 
   setConnected(c) { this.show('.nowheel', !c); }
 
-  garage(step, colour) {
+  garage(step, colour, grass = 0) {
     this.show('.garage-ui', step != null);
     if (step == null) return;
     this.show('.g-vehicle', step === 'vehicle');
     this.show('.g-colours', step === 'colour');
+    this.show('.g-grass', step === 'grass');
     this.pots.forEach((p, i) => p.classList.toggle('sel', i === colour));
+    this.swatches.forEach((sw, i) => sw.classList.toggle('sel', i === grass));
   }
 
   pressButton() {

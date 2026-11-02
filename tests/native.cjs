@@ -122,7 +122,7 @@ for _ in range(45):
     os.write(fd, struct.pack('IhBB', 0, 1, 1, 6) + struct.pack('IhBB', 0, 1, 1, 7))
     time.sleep(0.2)
 `]);
-    check('holding the parent buttons for 5 s closes it', await waitNative(false, 12000));
+    check('holding the parent buttons for 2 s closes it', await waitNative(false, 12000));
     holder.kill();
 
     // Grassnyer: "Back to the games" and waking into the picker

@@ -9,7 +9,7 @@
       "--no-start-screen", "--use-gamepad=0",
       "--kart={kart}", "--track={track}",
       "--difficulty=0", "--numkarts=4", "--laps=2", "--mode=0",
-      "-f", "-s", "1280x720",
+      "-f", "--screensize=1280x720",
       "--disable-dynamic-lights", "--shadows=0", "--anisotropic=0",
       "--debug=gui", "--log=nocolor"
     ],
@@ -18,6 +18,7 @@
       "track": ["zengarden", "lighthouse", "olivermath", "snowtuxpeak"]
     },
     "exitOnLog": "Switching to screen race_result\\.stkgui",
+    "exitNowOnLog": "Switching to screen main_menu\\.stkgui",
     "exitDelay": 6
   }
 }

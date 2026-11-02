@@ -96,7 +96,7 @@ async function main() {
   };
 
   try {
-    await page.goto(`http://127.0.0.1:${port}/?idleStop=3&idleSleep=14&hintAfter=2&stuckAfter=4`);
+    await page.goto(`http://127.0.0.1:${port}/?idleStop=3&idleSleep=14&hintAfter=2&stuckAfter=4&giftFirst=900`);
     await until(() => window.__grassnyer && window.__grassnyer.state === 'garage');
     check('picker skips straight to the only game', page.url().includes('/games/mower/'));
     await sleep(600);
@@ -114,7 +114,16 @@ async function main() {
     check('colour step and turning picks the next colour', gar.step === 'colour' && gar.colour === 1, JSON.stringify(gar));
     await shot('03-garage-colour');
     await tap(0);
+    gar = await G('__grassnyer.garage');
+    check('the garage then asks for the grass colour', gar.step === 'grass', JSON.stringify(gar));
+    await nudge(1);
+    await sleep(400);
+    await shot('03b-garage-grass');
+    const pickedGrass = (await G('__grassnyer.garage')).grass;
+    await tap(0);
     await until(() => window.__grassnyer.state === 'play');
+    const wantTip = await G(`import('/games/mower/js/lawns.js').then((L) => { const c = L.GRASS_CHOICES[${pickedGrass}]; return c ? c.tip : L.LAWNS[window.__grassnyer.lawn].look.grass.tip; })`);
+    check('the lawn uses the grass colour picked in the garage', (await G('__grassnyer.grassTip')) === wantTip, `picked ${pickedGrass}`);
     let v = await G('__grassnyer.vehicle');
     check('lawn starts with the chosen vehicle and colour', v.type === 'tractor' && v.colour === 1, `${v.type} ${v.colour}`);
     check('starts plain (no decorations)', Object.keys(v.decorations).length === 0);
@@ -360,7 +369,7 @@ async function main() {
     check('a touch wakes it (via the picker) into the garage', woke);
     check('new session: plain vehicle', Object.keys(gar.decorations || {}).length === 0, JSON.stringify(gar.decorations));
     check('new session: vehicle and colour remembered', gar.type === 'tractor' && gar.colour === 2, JSON.stringify(gar));
-    await tap(0); await tap(0);
+    await tap(0); await tap(0); await tap(0);   // vehicle, colour, grass
     await until(() => window.__grassnyer.state === 'play');
     check('new session moves on to the next lawn', (await G('__grassnyer.lawn')) === 0, String(await G('__grassnyer.lawn')));
 

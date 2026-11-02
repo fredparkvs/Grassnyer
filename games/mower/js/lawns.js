@@ -123,3 +123,35 @@ export const LAWNS = PLANS.map((p) => ({
   h: p.h * GROW,
   obstacles: p.obstacles.map((o) => ({ ...o, x: o.x * GROW, z: o.z * GROW, ...(o.type === 'path' ? { d: o.d * GROW } : {}) })),
 }));
+
+// Grass colours the child can pick in the garage (added 2026-11-02 at the
+// parent's request). The first, null, means every lawn keeps its own grass
+// as designed above; any other replaces the grass on every lawn, while the
+// sky, light, flowers and floating things stay the lawn's own.
+export const GRASS_CHOICES = [
+  null,                               // every lawn its own
+  { base: 0x2f7a24, tip: 0x9ad94f },  // green
+  { base: 0x8a6a20, tip: 0xf4d870 },  // golden
+  { base: 0x1d5560, tip: 0x8fe3c8 },  // teal
+  { base: 0x1f4a8a, tip: 0x7fc4ff },  // blue
+  { base: 0x5a2a7a, tip: 0xd09aff },  // purple
+  { base: 0x8a2a5a, tip: 0xff9ccf },  // pink
+  { base: 0x8a3a10, tip: 0xffa040 },  // orange
+  { base: 0x6f7a80, tip: 0xf4fbff },  // frosty white
+];
+
+function mixHex(a, b, k) {
+  const ch = (v, s) => (v >> s) & 255;
+  const m = (s) => Math.round(ch(a, s) + (ch(b, s) - ch(a, s)) * k) << s;
+  return m(16) | m(8) | m(0);
+}
+
+// A lawn's look with the chosen grass colour; the mowed stripes follow it.
+export function lookWithGrass(look, choice) {
+  if (!choice) return look;
+  return {
+    ...look,
+    grass: { ...look.grass, base: choice.base, tip: choice.tip },
+    mowed: { under: mixHex(choice.base, choice.tip, 0.1), a: mixHex(choice.base, choice.tip, 0.78), b: mixHex(choice.base, choice.tip, 0.6) },
+  };
+}

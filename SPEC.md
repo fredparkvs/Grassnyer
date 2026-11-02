@@ -213,7 +213,7 @@ Agreed on 2026-10-31.
   - kart and track picked at random from a friendly list in `games/supertuxkart/game.json`
 - **Controls:** the wheel steers. The **gas pedal** accelerates and the brake pedal brakes (agreed: no auto-accelerate helper). The pedals are bound in SuperTuxKart's own controls on the Pi.
 - **Ending:** when the race ends, the results show for a few seconds and then SuperTuxKart closes, back to the picker.
-- **Getting out:** holding the two parent buttons for 5 seconds closes SuperTuxKart at any time, back to the picker.
+- **Getting out:** holding the two parent buttons (Select + Start) for 2 seconds closes SuperTuxKart at any time and goes straight back to the picker. It was 5 seconds until 2026-11-02, when the parent asked for it to jump straight to the game chooser; there's no parent menu to open here. Leaving a race from SuperTuxKart's own menus also goes straight back to the picker, instead of stopping at its main menu. Its pause is on the small PS button, so Start doesn't pop up the pause menu.
 - **Back to the games:** Grassnyer's parent settings have a "Back to the games" item.
 - **Play timer:** it only counts time in Grassnyer. SuperTuxKart races are short and always end back at the picker.
 - **Speed:** unknown until it runs on the Pi. It starts at 1280x720 with the simple renderer, no shadows and no dynamic lights. Claude on the Pi measures the speed and tunes these.

@@ -132,9 +132,11 @@ How a native game runs:
   `~/.local/share/grassnyer/session.env`, which `kiosk.sh` writes, since the
   server runs as a background service.
 - It logs to `~/.local/share/grassnyer/native-<id>.log`.
-- It closes the game when `exitOnLog` matches or the parent buttons are held
-  for 5 s. It reads those buttons as raw joystick numbers from
-  `settings.wheel.parentButtons`, falling back to 6 and 7.
+- It closes the game when `exitOnLog` matches (after `exitDelay`), straight
+  away when `exitNowOnLog` matches (SuperTuxKart back at its main menu, i.e. the
+  race was left), or when the parent buttons are held for 2 s. It reads those
+  buttons as raw joystick numbers from `settings.wheel.parentButtons`, falling
+  back to select + start (8 and 9) on PS3-style pads, and 6 and 7 otherwise.
 
 ## SuperTuxKart bring-up (on the Pi)
 
@@ -165,7 +167,7 @@ SuperTuxKart 1.5 source; none of it has run on the Pi yet.
    Ending relies on `--debug=gui` printing
    `Switching to screen race_result.stkgui`; if that line changes, update
    `exitOnLog`.
-6. **Escape hatch.** Holding the parent buttons for 5 s must close it. If not,
+6. **Escape hatch.** Holding the parent buttons for 2 s must close it. If not,
    compare `jstest /dev/input/js0` button numbers with `settings.wheel.parentButtons`.
 
 ## Performance
